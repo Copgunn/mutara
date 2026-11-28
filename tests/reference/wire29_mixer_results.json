@@ -23,11 +23,11 @@
   "tools/reference/m5c_starts.py": "757cfcda4392220aaa3e0da111c5162fe8a2e1aa3d74692ff7c759d6f8460235",
   "tools/reference/m5c_mixer_driver.c": "8712383a896c7ff4a9be330e1457c7e321262180f215568ea211ee78b2b15af3"
  },
- "items": 12,
- "starts": 281,
- "tics": 9268,
- "buffers": 5707,
- "goldens_sha256": "1a9cc5d92b0a77f1bd20238c1920c69a37fef5decf8d5b345c8a03d3f872640b",
+ "items": 13,
+ "starts": 308,
+ "tics": 9443,
+ "buffers": 5815,
+ "goldens_sha256": "146d50f1d05b1886e26c3b1c7dd124c0cc4a298308594afca0f3021f5046f766",
  "per_item": {
   "BLOCK4": {
    "sound_sha256": "dd28a61cd23661f1195bc644d45f66898b49fee99f7c2819e0bbbb301a9aceeb",
@@ -187,6 +187,22 @@
     "buffers": 170,
     "stream_sha256": "e058ff447d17a7df9b1c8506cdf0593a7e742ed2f88913a433cecbdb4cb2992d",
     "rows_sha256": "b436942d737ae6f9fe98ae321a9c445c7d42836b244d4f82e29245c35a246e95"
+   }
+  },
+  "MELTP": {
+   "sound_sha256": "ee62bb229613cd56dc03d647d92c73befa9243266bf19f5fd61589341c7b0513",
+   "starts": 27,
+   "tics": 175,
+   "starts_sha256": "d5802bd2940160cf7a1d408e88052ee6cb328d91b7dd016541d1fb3dae022030",
+   "buffers": 108,
+   "stream_sha256": "51a5251697d7f3c291853ac23b09e58bb91d05d0d7c44502a498e314bb5f070f",
+   "golden_sha256": "c8bad5947b0315793801eb2a71100e5ab401990944720c0047b29e164015adda",
+   "model": "identical",
+   "variants": "identical",
+   "pertic": {
+    "buffers": 175,
+    "stream_sha256": "f024ae65565253cedf08c10a2198abf1b9fec00f90f60387e9aacf85c4ee7717",
+    "rows_sha256": "ea5e4506ce0be56c6972c7129f0df3031df322715ad63a18fff9fdb4ddb7aeed"
    }
   },
   "REBORNP": {

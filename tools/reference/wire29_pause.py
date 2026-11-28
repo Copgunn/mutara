@@ -31,6 +31,16 @@ the byte edits its text file lists (session tics):
             (704-708), so the reborn player is drawn before any P_CalcHeight, from the viewz 0 that G_PlayerReborn's
             memset (g_game.c:815) leaves after P_SetupLevel's viewz = 1 (p_setup.c:604; P_LoadThings later); 0x81
             on tic 190 unpauses.
+  MELTP     LOADP's base: 0x81 on the completion tic 126 (G_DoCompleted, then the toggle, g_game.c:637 and 704-708,
+            then WI_Ticker): the D_Display after it melts from the level into the intermission drawn with the PAUSE
+            picture (d_main.c:303-313 before wipe_EndScreen, 327); 0x81 on 128 unpauses; 0x81 on the intermission's
+            last tic 138 pauses, so the melt after the load tic 139 starts from a screen with the picture and ends on
+            the new level without it (G_DoLoadLevel cleared paused, 494); 0x81 on 140, the first tic after that melt
+            (the melt loop, d_main.c:329-344, runs no tic and reads no event: a Pause key pressed in it waits until
+            NetUpdate's D_ProcessEvents, d_net.c:402-403, G_Responder sets sendpause, g_game.c:561-563, and
+            G_BuildTiccmd puts it in the next command, 426-428), pauses; 0x81 on 144 unpauses. No command can arrive
+            during a melt. Its rendered run is also made with --melt-clock unit
+            for the melt rows (m6a2_goldens.melt_text).
 Each new item is also run rendered at screenblocks 10 (strict build; its dumps must equal the plain run's), for its
 frame stream (m6a_goldens.golden_frames) and its M6b stream (the paused frames' B rows and the MP rows of the pause's
 music calls), and its sound stream (m6a_goldens.golden_sound) is kept (M6b step 7).
@@ -44,6 +54,7 @@ Output (written without --check; --check regenerates and compares, writing nothi
       (tic, message_on of the frame stream's P row) and X rows (tic, the message shown)
   tests/reference/wire29_session/<NEW>.sound, <NEW>.sb10.frames, <NEW>.sb10.pause   the sound stream, the frame stream
       and the M6b stream of the rendered run (as tests/reference/m6b_sound, m6b_frames and m6b_pause)
+  tests/reference/wire29_session/MELTP.sb10.melt          DOOM-M6A2-MELT-v1: every melt step of its unit-clock run
 
     wire29_pause.py [--check] [--selftest] [--only ITEM[,ITEM]] [--work DIR] [--cc CC]
 """
@@ -62,6 +73,7 @@ import m6a_state as ST               # noqa: E402  (read-only: Shifted, extra_lu
 import m6b_build as B                # noqa: E402  (read-only)
 import m6b_goldens as G              # noqa: E402  (read-only: run, clean, ENV, GENUINE, DIRS)
 import m6b_wad as WAD                # noqa: E402  (read-only)
+import m6a2_goldens as M2            # noqa: E402  (read-only: melt_text)
 import wire29_goldens as WG          # noqa: E402  (read-only: digest)
 
 DIR = 'tests/reference/wire29_session'
@@ -85,6 +97,11 @@ NEW = {
                     edits=[('buttons', 185, SPECIAL_USE), ('buttons', 186, PAUSE), ('buttons', 190, PAUSE), ('cut', 260)],
                     what='0x83 asks for the reborn, then 0x81 on the reborn\'s load tic pauses the reloaded level before '
                          'its tic 0 (the reborn player drawn from viewz 0); 0x81 four tics later runs tic 0'),
+    'MELTP': dict(base='tests/reference/m6a_scripts/CHAIN.lmp', wads=WAD.EPISODE, address_stop=True, frames=10, melt=True,
+                  edits=[('buttons', t, PAUSE) for t in (126, 128, 138, 140, 144)] + [('cut', 175)],
+                  what='0x81 on the tics around the two melts: the completion tic (the melt ends on the paused '
+                       'intermission), the intermission\'s last tic (the melt starts from it; the load clears paused) '
+                       'and the first tic after that melt'),
 }
 sha = lambda b: hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
 
@@ -215,6 +232,11 @@ def new_item(name, bins, work, selftest):
     if not G.clean(rr) or rr['digests'] != s['digests'] or rr['sound'] != s['sound']:
         sys.exit(f'{name}: the rendered run differs')
     extra = hud_rows(rr['frames']) if it.get('sb') else []
+    melt = {}
+    if it.get('melt'):
+        ru = run(bins['strict'], name, work / 'runs' / f'{name}_unit', wads, sb=sb, extra=['--melt-clock', 'unit'])
+        if not G.clean(ru) or ru['digests'] != s['digests']: sys.exit(f'{name}: the unit-clock run differs')
+        melt = {ROOT / DIR / f'{name}.sb{sb}.melt': M2.melt_text(ru).encode()}
     print(f'{name}: {len(caps)} captures (DSIM45); ' + ', '.join(f'{k} {v}' for k, v in f.items()))
     if selftest:
         # An extra P_Random draw planted in the runner before the middle of the level must change the capture after it.
@@ -229,7 +251,7 @@ def new_item(name, bins, work, selftest):
             ROOT / DIR / f'{name.lower()}_state.txt': state_text(name, s, caps, f, extra).encode(),
             ROOT / DIR / f'{name}.sound': G.G6.golden_sound(s['sound']).encode(),
             ROOT / DIR / f'{name}.sb{sb}.frames': G.G6.golden_frames(rr['frames']).encode(),
-            ROOT / DIR / f'{name}.sb{sb}.pause': rr['m6b'].encode()}
+            ROOT / DIR / f'{name}.sb{sb}.pause': rr['m6b'].encode()} | melt
 
 
 def main():
