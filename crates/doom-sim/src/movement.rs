@@ -470,7 +470,6 @@ pub(crate) fn path(
         crossings[axis] = shifted(a[other], 7) + partial * increments[axis];
     }
     let [w, h] = world.map().blockmap().dimensions().map(i32::from);
-    let strict = checked && world.parameters.is_some();
     let mut seen = crate::line_work::SeenLines::for_lines(world.lines.len());
     let mut hits = Vec::new();
     for _ in 0..64 {
@@ -524,12 +523,10 @@ pub(crate) fn path(
             break;
         }
         if crossings[0].bits() >> 16 == map[1] {
-            crossings[0] =
-                walk_step(crossings[0], increments[0], strict).ok_or(PathError::Arithmetic)?;
+            crossings[0] = crossings[0] + increments[0];
             map[0] += steps[0];
         } else if crossings[1].bits() >> 16 == map[0] {
-            crossings[1] =
-                walk_step(crossings[1], increments[1], strict).ok_or(PathError::Arithmetic)?;
+            crossings[1] = crossings[1] + increments[1];
             map[1] += steps[1];
         }
     }
@@ -537,20 +534,6 @@ pub(crate) fn path(
     hits.sort_by_key(|hit| hit.0);
     crate::level_stats::observe_intercepts(hits.len());
     Ok(hits)
-}
-
-/// `P_PathTraverse` adds a step to an intercept in `int` (p_maputl.c:868, 873),
-/// undefined in C where the sum leaves `int` (Q-p_maputl-868; the overflow and
-/// address builds stop there in audit 1's WRAP). `strict` (wire 29 under the
-/// checked arithmetic) gives `None` there, which refuses the tic; every other
-/// policy keeps the wrapping sum (the `-fwrapv` value) byte for byte.
-#[inline(always)]
-pub(crate) fn walk_step(at: Fixed, step: Fixed, strict: bool) -> Option<Fixed> {
-    match at.bits().checked_add(step.bits()) {
-        Some(sum) => Some(Fixed::from_bits(sum)),
-        None if strict => None,
-        None => Some(at + step),
-    }
 }
 
 fn slope_div(num: u32, den: u32) -> usize {
