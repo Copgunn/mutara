@@ -816,6 +816,36 @@ fn a_freed_damage_source_is_refused_only_for_a_live_shootable_victim() {
     assert_eq!(plan(5, false), Ok(()));
 }
 
+/// Pins `removed_owner` (the doc of that function; p_mobj.c:408 sweeps no reference): a
+/// flying missile whose owner is gone is refused by the live-missile preflight with
+/// `ProjectileError::Owner`, except under wire 29 with respawning (Nightmare, or
+/// respawnparm), where the corpse's removal leaves it flying. Below the public API: the
+/// preflight is `pub(crate)` and no run leaves a missile ownerless but under respawning.
+#[test]
+fn a_missile_without_its_owner_is_admitted_only_with_respawning() {
+    let preflight = |skill: Skill, parameters: GameParameters| {
+        let mut s = level_at(2, skill, parameters, 0);
+        let id = s.actor_order().nth(1).expect("a second actor");
+        let life = s
+            .actors
+            .get_mut(id)
+            .and_then(|a| a.life.as_mut())
+            .expect("typed");
+        life.actor_type = ActorTypeId(OriginalActorType::MT_TROOPSHOT.ordinal());
+        life.flags |= crate::original_player::MF_MISSILE;
+        life.target = Some(ActorId::from_parts(900, 7));
+        s.preflight_live_missiles()
+    };
+    let owner = Err(ProjectileError::Owner.into());
+    assert_eq!(preflight(Skill::Hard, NONE), owner);
+    assert_eq!(preflight(Skill::Nightmare, NONE), Ok(()));
+    let respawn = GameParameters {
+        respawn: true,
+        fast: false,
+    };
+    assert_eq!(preflight(Skill::Hard, respawn), Ok(()));
+}
+
 /// Pins `toggles_pause` and `save_command` over all 256 button bytes, by the written rule
 /// of their docs (g_game.c:698-716, d_event.h:78-92): `BT_SPECIAL` (0x80) set, and the low
 /// two bits 1 (pause) or 2 (save game). Below the public API: the two predicates are
