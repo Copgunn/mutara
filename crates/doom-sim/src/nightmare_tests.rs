@@ -774,6 +774,48 @@ fn the_wrapped_num_class_is_taken_for_the_slide_trace_alone() {
     );
 }
 
+/// Pins `freed_source`'s two arms through `DamagePlan::current_original_in` (the doc of
+/// `freed_source`, p_inter.c:787-791 and 806-809): under wire 29 a damage source that no
+/// longer resolves is refused with `FreedRead` for a victim that is alive (`health > 0`) and
+/// shootable, and ignored for one that is not (health 0, or not shootable), where the C
+/// returns before reading the source. Below the public API: the plan is `pub(crate)`, and
+/// the genuine STALE items reach only the live victim.
+#[test]
+fn a_freed_damage_source_is_refused_only_for_a_live_shootable_victim() {
+    let source = ActorId::from_parts(900, 7);
+    let plan = |health: i32, shootable: bool| {
+        let mut s = level_at(2, Skill::Hard, NONE, 0);
+        let victim = s
+            .actor_order()
+            .find(|i| {
+                let l = s.actor(*i).and_then(|a| a.life);
+                l.is_some_and(|l| l.flags & crate::world_pickups::MF_COUNTKILL != 0)
+            })
+            .expect("a monster");
+        let life = s
+            .actors
+            .get_mut(victim)
+            .and_then(|a| a.life.as_mut())
+            .expect("typed");
+        life.health = health;
+        let bit = crate::original_player::MF_SHOOTABLE;
+        life.flags = (life.flags & !bit) | if shootable { bit } else { 0 };
+        let request = DamageRequest {
+            target: victim,
+            inflictor: None,
+            source: Some(source),
+            amount: 1,
+        };
+        s.checked_demon_operation(|h| {
+            crate::combat::DamagePlan::current_original(h, request).map(|_| ())
+        })
+        .and_then(|r| r)
+    };
+    assert_eq!(plan(5, true), Err(SimError::FreedRead));
+    assert_eq!(plan(0, true), Ok(()));
+    assert_eq!(plan(5, false), Ok(()));
+}
+
 /// Pins `toggles_pause` and `save_command` over all 256 button bytes, by the written rule
 /// of their docs (g_game.c:698-716, d_event.h:78-92): `BT_SPECIAL` (0x80) set, and the low
 /// two bits 1 (pause) or 2 (save game). Below the public API: the two predicates are
