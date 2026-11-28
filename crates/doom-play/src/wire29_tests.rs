@@ -3,7 +3,8 @@
 //! doom-play's loader: the Pause key's command recorded as the original builds it (g_game.c:426-430)
 //! and replayed by a fresh session to the same state, Esc's pause outside the demo, a restart as a
 //! new game, and a missing `M_PAUSE` refused at the first paused tic (decision D24 of step 7).
-//! Rust-only checks; the genuine engine plays such recordings in `tools/local/wire29_play_check.py`.
+//! Rust-only checks; the genuine engine plays such recordings in `tools/local/wire29_real.py --kind sessions
+//! --recording FILE`.
 
 use crate::keys::{Mute, key_event};
 use crate::melt_tests::at;
