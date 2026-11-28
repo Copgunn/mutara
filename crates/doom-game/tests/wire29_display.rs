@@ -8,7 +8,7 @@
 mod m6a;
 
 use doom_game::session::demo::SessionDemo;
-use doom_game::session::{Session, SessionSettings};
+use doom_game::session::{PlantedFault, Session, SessionSettings};
 use doom_render::{
     DisplayRefusal, Frame, PauseFields, SessionDisplayStateV5, SessionRestoreError,
     SessionStateRefusal,
@@ -138,6 +138,31 @@ fn the_pause_display_reports_its_fields_and_saves_as_version_5_only() {
     );
     assert!(d.session_state_v4().is_some());
     assert!(d.session_state_v4_checked().is_ok());
+}
+
+/// A display holding either planted self-test fault alone (the lowered picture, or viewz 1 for
+/// a reborn player: `d_display/pause.rs`'s docs of `plant_pause_fault` and `plant_viewz_fault`)
+/// cannot be saved: `session_state_v5_checked` refuses with `PlantedFault`; with neither it saves.
+#[test]
+fn a_display_with_either_planted_fault_alone_cannot_be_saved() {
+    let planted = |fault| {
+        let (mut s, _, _) = start("PAUSE");
+        if let Some(f) = fault {
+            s.plant_fault(f);
+        }
+        s.display().session_state_v5_checked().err()
+    };
+    assert_eq!(planted(None), None);
+    for f in [
+        PlantedFault::PausePictureLower,
+        PlantedFault::WorldDoneViewzOne,
+    ] {
+        assert_eq!(
+            planted(Some(f)),
+            Some(SessionStateRefusal::PlantedFault),
+            "{f:?}"
+        );
+    }
 }
 
 /// `observe_paused` is `observe_paused_with` with both tickers on (the pause's `ST_Ticker` and
