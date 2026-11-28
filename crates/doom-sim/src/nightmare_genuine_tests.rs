@@ -481,7 +481,10 @@ fn the_overshoot_wrap_is_followed_through_the_wrapping_step_sum() {
     let defined: usize = row("O", "defined_captures")[2].parse().expect("defined");
     let overflows: Vec<&str> = row("O", "step_overflows")[2].split(';').collect();
     assert!(defined < captures.len() && overflows.iter().all(|o| o.ends_with(" 1")));
-    assert_eq!((row("I", "WRAP")[2], captures.len(), overflows.len()), ("2", 58, 7));
+    assert_eq!(
+        (row("I", "WRAP")[2], captures.len(), overflows.len()),
+        ("2", 58, 7)
+    );
     let wrap = || {
         let (map, commands) = demo_at("overshoot_scripts/WRAP.lmp");
         assert_eq!(commands.len() + 1, captures.len(), "every command played");
