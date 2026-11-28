@@ -73,7 +73,7 @@ fn read(path: &str) -> String {
 fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
     let episode = matches!(
         name,
-        "PAUSEWI" | "PAUSEFIN" | "LOADP" | "DEADSPEC" | "REBORNP"
+        "PAUSEWI" | "PAUSEFIN" | "LOADP" | "DEADSPEC" | "REBORNP" | "MELTP"
     );
     let first = [
         "tests/reference/m6b_wads/m6b.wad",
@@ -102,7 +102,7 @@ fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
 
 /// The wire 29 items, whose goldens are under `wire29_session/` (`tools/reference/wire29_pause.py`).
 fn new_item(name: &str) -> bool {
-    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP" | "REBORNP")
+    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP" | "REBORNP" | "MELTP")
 }
 
 /// The genuine sound stream's rows by tic (`m6b_sound/<item>.sound` or `wire29_session/`).
@@ -652,6 +652,58 @@ fn a_paused_reborn_load_tic_is_drawn_as_the_genuine_engine_draws_it() {
     eprintln!(
         "REBORNP: {} tics, {} paused frames",
         o.tics, o.paused_frames
+    );
+}
+
+/// MELTP (`tools/reference/wire29_pause.py`): 0x81 on the tics around the two melts of CHAIN's first
+/// exit. No tic runs during a melt (d_main.c:329-344), so a pause asked for in one is a command of the
+/// tic after it. On the completion tic the melt ends on the paused intermission with the PAUSE
+/// picture (d_main.c:303-313 before wipe_EndScreen, 327); on the intermission's last tic it starts
+/// from that picture and the load clears `paused` (g_game.c:494); on the first tic after it the
+/// level pauses. Every tic, frame, paused frame, music call, sound row and mixer buffer equals the
+/// genuine goldens, and every step of both melts the unit-clock melt golden (`MELTP.sb10.melt`).
+#[test]
+fn pause_commands_around_the_screen_melts_equal_the_genuine_engine() {
+    let o = drive("MELTP", 10, true, None);
+    assert_eq!(o.first, None, "MELTP {:?}", o.f_line);
+    let (item, parameters, cmds) = item("MELTP");
+    assert_eq!(o.tics, cmds.len(), "every tic");
+    assert!(o.paused_frames > 0 && o.mixer_rows > 0);
+    let golden = Rows::parse(&read("wire29_session/MELTP.sb10.melt"));
+    let row = |v: &BTreeMap<String, String>| {
+        let k = ["tic", "step", "done"].map(|c| v[c].clone());
+        format!("{},{},{},{}", k[0], k[1], k[2], v["sha256"])
+    };
+    let want: Vec<String> = golden.of("V").iter().map(row).collect();
+    let palettes: Vec<i64> = golden.of("Y").iter().map(|y| int(y, "palette")).collect();
+    let settings = SessionSettings {
+        map: item.map,
+        skill: item.skill,
+        screenblocks: 10,
+    };
+    let mut s = Session::new_finale_and_melt_wire29(m6a::data(&item, None), settings, parameters)
+        .expect("starts");
+    let (mut got, mut got_palettes, mut picture) = (Vec::new(), Vec::new(), Frame::new());
+    for &cmd in &cmds {
+        s.tic_finale_and_melt(cmd).expect("a tic");
+        while s.melt_in_progress() {
+            let m = s.melt_step(&mut picture).expect("a melt step");
+            let sha = sha256(picture.pixels());
+            got.push(format!("{},{},{},{sha}", m.tic, m.step, u8::from(m.done)));
+            if m.done {
+                got_palettes.push(i64::from(m.palette));
+            }
+        }
+    }
+    assert_eq!((got.len(), &got_palettes), (want.len(), &palettes));
+    let first = got.iter().zip(&want).position(|(a, b)| a != b);
+    assert_eq!(first, None, "the first differing melt step");
+    eprintln!(
+        "MELTP: {} tics, {} paused frames, {} melts, {} melt steps",
+        o.tics,
+        o.paused_frames,
+        palettes.len(),
+        got.len()
     );
 }
 

@@ -270,6 +270,46 @@ fn p_is_a_second_pause_key_under_modern_bindings_only() {
     assert!(!p.3.contains(&PAUSE_COMMAND), "no pause byte");
 }
 
+/// The Pause key pressed and released during the session-start melt: the app holds both and the
+/// first command after the melt is the pause command, whose tic is paused, as in the genuine
+/// engine (the melt loop runs no tic and reads no event, d_main.c:329-344; then G_Responder sets
+/// `sendpause`, g_game.c:561-563, and the next command carries it, 426-428; `MELTP`'s tic 140 in
+/// doom-game's `wire29_frames` is that tic against the genuine runner). The held release is one
+/// command later, which a pause byte ignores.
+#[test]
+fn the_pause_key_during_a_melt_pauses_the_first_tic_after_it() {
+    let mut host = FileHost::default();
+    let mut app = App::new(data(true), SessionConfig::default(), &mut host);
+    let mut k = 0;
+    while !app.melt_in_progress() {
+        k += 1;
+        assert!(k < 100, "no melt");
+        app.update(at(k), &mut host);
+    }
+    let t = app.tic();
+    app.key(KEY_PAUSE, true, &mut host);
+    app.key(KEY_PAUSE, false, &mut host);
+    assert_eq!(app.held_inputs(), 2);
+    while app.melt_in_progress() {
+        k += 1;
+        app.update(at(k), &mut host);
+    }
+    assert_eq!(
+        (app.tic(), app.recorder().len() as u64),
+        (t, t),
+        "no tic in the melt"
+    );
+    run_to(&mut app, &mut host, &mut k, t + 2);
+    let buttons: Vec<u8> = app
+        .recorder()
+        .commands()
+        .iter()
+        .map(|c| c.buttons)
+        .collect();
+    assert_eq!(buttons[t as usize..t as usize + 2], [PAUSE_COMMAND, 0]);
+    assert!(app.session().expect("session").paused());
+}
+
 /// Without `M_PAUSE` the first paused tic is refused with the state kept (decision D24 of step 7;
 /// the genuine engine stops in `W_CacheLumpName` on its first paused frame, d_main.c:307): the
 /// app ends there and the refused tic's pause command is not in the demo.
