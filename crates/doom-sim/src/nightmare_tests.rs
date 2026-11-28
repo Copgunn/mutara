@@ -468,6 +468,140 @@ fn the_pause_commands_and_the_paused_tic() {
     );
 }
 
+/// Pins the bound of `escaped_missile` and the two admissions that use it (the doc of
+/// `escaped_missile`: each coordinate within `32,767 - 128` units less the sight margin
+/// capped at 16,384; the height within the sight margin alone; only a missile type, only
+/// under wire 29). Below the public API: the admission is a `pub(crate)` preflight, and no
+/// committed genuine item puts a missile at the bound, only far inside it (FASTOUT).
+#[test]
+fn an_escaped_missile_is_admitted_to_exactly_its_documented_bound() {
+    let s = level_at(2, Skill::Hard, NONE, 0);
+    let first = s.actor_order().next().expect("an actor");
+    let base = *s.actor(first).expect("actor");
+    let margin = s.sight_margin();
+    let bound = 32_767 - 128 - margin.min(16_384);
+    let at = |ty: OriginalActorType, x: u32, y: u32, z: u32| {
+        let mut a = base;
+        let units = |u: u32| Fixed::from_map_units(u as i16);
+        a.spec.position = [units(x), units(y)];
+        a.z = units(z);
+        a.life.as_mut().expect("typed").actor_type = ActorTypeId(ty.ordinal());
+        a
+    };
+    let shot = OriginalActorType::MT_TROOPSHOT;
+    let imp = OriginalActorType::MT_TROOP;
+    assert!(
+        bound > margin,
+        "the cases below lie outside the whole bound"
+    );
+    assert!(s.escaped_missile(&at(shot, bound, 0, 0)));
+    assert!(s.escaped_missile(&at(shot, 0, bound, 0)));
+    assert!(!s.escaped_missile(&at(shot, bound + 1, 0, 0)));
+    assert!(!s.escaped_missile(&at(shot, 0, bound + 1, 0)));
+    assert!(!s.escaped_missile(&at(imp, bound, 0, 0)));
+    assert_eq!(s.actor_bounds_admitted(&at(shot, bound, 0, 0)), Ok(()));
+    assert_eq!(s.actor_bounds_admitted(&at(shot, bound, 0, margin)), Ok(()));
+    assert_eq!(
+        s.actor_bounds_admitted(&at(shot, bound, 0, margin + 1)),
+        Err(PerceptionError::Arithmetic.into())
+    );
+    assert!(s.actor_bounds_admitted(&at(shot, bound + 1, 0, 0)).is_err());
+    assert!(s.actor_bounds_admitted(&at(imp, bound, 0, 0)).is_err());
+    let old = Simulation::original_player_episode1_v6_level_at(
+        m6b_map(2),
+        2,
+        Skill::Hard,
+        MapContextOptions::default(),
+        LevelStart::NewGame,
+        0,
+    )
+    .expect("wire 28");
+    assert!(!old.escaped_missile(&at(shot, bound, 0, 0)));
+}
+
+/// Pins `missile_speed` (g_game.c:1425-1427, the rule in its doc): under the fast table
+/// (fastparm, or Nightmare) exactly `MT_BRUISERSHOT`, `MT_HEADSHOT` and `MT_TROOPSHOT`
+/// move 20 units a tic and every other type keeps its speed; with no fast table none changes.
+/// Below the public API: the function is `pub(crate)`, and no committed item flies a
+/// fast fireball of every other missile type.
+#[test]
+fn only_the_three_fireballs_take_the_fast_speed() {
+    let speed = 7 << 16;
+    let fast = level_at(
+        2,
+        Skill::Hard,
+        GameParameters {
+            respawn: false,
+            fast: true,
+        },
+        0,
+    );
+    let slow = level_at(2, Skill::Hard, NONE, 0);
+    let nightmare = level_at(2, Skill::Nightmare, NONE, 0);
+    for ty in [
+        OriginalActorType::MT_BRUISERSHOT,
+        OriginalActorType::MT_HEADSHOT,
+        OriginalActorType::MT_TROOPSHOT,
+        OriginalActorType::MT_ROCKET,
+        OriginalActorType::MT_PLASMA,
+        OriginalActorType::MT_TROOP,
+    ] {
+        let id = ActorTypeId(ty.ordinal());
+        let three = !matches!(
+            ty,
+            OriginalActorType::MT_ROCKET
+                | OriginalActorType::MT_PLASMA
+                | OriginalActorType::MT_TROOP
+        );
+        let want = if three { 20 << 16 } else { speed };
+        let of = |s: &Simulation| {
+            crate::nightmare::missile_speed(&s.world, s.actor_options.skill, id, speed)
+        };
+        assert_eq!(of(&fast), want, "{ty:?} fast");
+        assert_eq!(of(&nightmare), want, "{ty:?} nightmare");
+        assert_eq!(of(&slow), speed, "{ty:?} slow");
+    }
+}
+
+/// Pins the roster bound of `preflight_map_demons` under wire 29: the placed monsters
+/// (the map's own `K`, `Episode1Bounds::monsters`; a respawned monster replaces its corpse,
+/// so the bound is the count of placed ones) are admitted at `K` and refused with
+/// `MapSpawnError::Ownership` above it. Below the public API: the bound is a map constant
+/// that no loadable map exceeds, so the test lowers it in the world.
+#[test]
+fn the_roster_of_placed_monsters_is_bounded_by_the_maps_count() {
+    let mut s = level_at(2, Skill::Hard, NONE, 0);
+    let k = s.world.episode1.expect("bounds").monsters;
+    assert!(k >= 1, "the map places monsters");
+    assert_eq!(s.preflight_map_demons(), Ok(()));
+    s.world.episode1.as_mut().expect("bounds").monsters = k - 1;
+    assert_eq!(
+        s.preflight_map_demons(),
+        Err(SimError::MapSpawn(MapSpawnError::Ownership))
+    );
+}
+
+/// Pins `toggles_pause` and `save_command` over all 256 button bytes, by the written rule
+/// of their docs (g_game.c:698-716, d_event.h:78-92): `BT_SPECIAL` (0x80) set, and the low
+/// two bits 1 (pause) or 2 (save game). Below the public API: the two predicates are
+/// `pub` in `nightmare`, and the session tests pass only a few bytes through them.
+#[test]
+fn the_pause_and_save_predicates_over_every_button_byte() {
+    for b in 0..=255u8 {
+        let special = b >= 0x80;
+        assert_eq!(
+            crate::nightmare::toggles_pause(b),
+            special && b % 4 == 1,
+            "{b:#x}"
+        );
+        assert_eq!(
+            crate::nightmare::save_command(b),
+            special && b % 4 == 2,
+            "{b:#x}"
+        );
+    }
+}
+
 #[test]
 fn fastparm_alone_changes_no_ammunition_or_reaction_time() {
     let (map, commands) = crate::nightmare_genuine_tests::demo("AMMO4");
