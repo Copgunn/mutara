@@ -506,6 +506,37 @@ fn the_overshoot_wrap_is_followed_through_the_wrapping_step_sum() {
     );
 }
 
+/// STEPREAD (golden `tests/reference/wire29_stale/stepread_state.txt` of
+/// `tools/reference/wire29_wrap.py`, skill 2): at session tic 7 a slide walk
+/// adds `FixedDiv`'s saturated `ystep` at p_maputl.c:868 and the `int` sum
+/// overflows (`step_overflows`; the overflow and address builds stop there,
+/// `defined_captures`); the walk is not at its end cell, so its next test
+/// (866) reads the wrapped sum (`step_reads`) and goes on. Wire 29 follows the
+/// strict build (ruling D44 (b)) at every capture with no refusal. The planted
+/// fault `saturate` (both sums clamped at the `int` limits) equals the strict
+/// build at every capture (`V` row `none`): a later test of the sum is false
+/// whether it wrapped or saturated (the tool's module comment), so no item can
+/// catch that fault.
+#[test]
+fn an_overflowed_step_sum_read_again_by_the_walk_is_followed() {
+    let (rows, p) = wire29_item("STEPREAD", "stepread.wad");
+    let fact = |kind: &str, key: &str| {
+        let row = rows.iter().find(|f| f[0] == kind && f[1] == key);
+        row.expect(key)[2..].join(",")
+    };
+    let captures = rows.iter().filter(|f| f[0] == "C").count();
+    let defined: usize = fact("O", "defined_captures").parse().expect("defined");
+    let live = fact("O", "step_overflows");
+    let reads = fact("O", "step_reads");
+    assert!(live.split(';').any(|o| o.starts_with("868 ") && o.ends_with(" 0")));
+    assert!(reads.split(';').any(|r| r.starts_with("868 ")), "a read again");
+    assert!(defined < captures);
+    assert_eq!(fact("V", "saturate"), "none,-", "not observable");
+    assert_eq!((p.difference, p.refusal), (None, None));
+    assert_eq!(p.digests.len(), captures);
+    eprintln!("STEPREAD: {captures} captures equal ({defined} defined); reads {reads}");
+}
+
 /// The planted faults of the port ([`Fault`]) and the `V` rows of the altered
 /// genuine engine each makes the port behave like.
 const FAULTS: [(Fault, &str); 18] = [
