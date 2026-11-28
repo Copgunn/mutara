@@ -26,6 +26,11 @@ the byte edits its text file lists (session tics):
             (gametic >> 5) & 3 == 0 = consoleplayer) and on tic 160 (gametic 160: (160 >> 5) & 3 == 1, no message):
             the message is set while paused and HU_Ticker, which runs while paused (g_game.c:733), shows it. Its
             rendered run also gives the HUD's state (the frame stream's P and X rows).
+  REBORNP   DEADSPEC's base and reborn byte (0x83 on tic 185), then 0x81 on the reborn's load tic 186: G_DoReborn
+            (g_game.c:924-931) loads the level, G_DoLoadLevel clears paused (494) and the command sets it again
+            (704-708), so the reborn player is drawn before any P_CalcHeight, from the viewz 0 that G_PlayerReborn's
+            memset (g_game.c:815) leaves after P_SetupLevel's viewz = 1 (p_setup.c:604; P_LoadThings later); 0x81
+            on tic 190 unpauses.
 Each new item is also run rendered at screenblocks 10 (strict build; its dumps must equal the plain run's), for its
 frame stream (m6a_goldens.golden_frames) and its M6b stream (the paused frames' B rows and the MP rows of the pause's
 music calls), and its sound stream (m6a_goldens.golden_sound) is kept (M6b step 7).
@@ -76,6 +81,10 @@ NEW = {
     'TURBOP': dict(base='tests/reference/m6b_scripts/PAUSE.lmp', wads=WAD.WADSET, sb=10, frames=10,
                    edits=[('forward', 160, 60), ('forward', 256, 60)],
                    what='the turbo message during a pause: forward 60 on gametic 256 (the message) and 160 (none)'),
+    'REBORNP': dict(base='tests/reference/m6a_scripts/REBLATE.lmp', wads=WAD.EPISODE, frames=10,
+                    edits=[('buttons', 185, SPECIAL_USE), ('buttons', 186, PAUSE), ('buttons', 190, PAUSE), ('cut', 260)],
+                    what='0x83 asks for the reborn, then 0x81 on the reborn\'s load tic pauses the reloaded level before '
+                         'its tic 0 (the reborn player drawn from viewz 0); 0x81 four tics later runs tic 0'),
 }
 sha = lambda b: hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
 
