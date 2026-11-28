@@ -613,6 +613,13 @@ impl<'a> Diagnostic<'a> {
             _ => crate::Skill::Medium,
         }
     }
+    /// DSIM45 with monsters respawning: skill 4 or the respawn parameter
+    /// (`actors.parameters` byte 0; g_game.c:1416-1419).
+    fn respawning(&self) -> bool {
+        self.nightmare
+            && (self.v40_skill() == crate::Skill::Nightmare
+                || self.field("actors.parameters").and_then(|p| p.first()) == Some(&1))
+    }
     fn slot_bound(&self) -> u32 {
         slot_bound_for(self.version)
     }
@@ -2618,11 +2625,13 @@ impl<'a> Diagnostic<'a> {
                 Some(b) => (b.monsters, b.monsters),
                 None => (placed, MAX_PLAYER_MONSTERS),
             };
-            // DSIM45 (ruling N10): kills of respawned monsters may pass the total.
+            // DSIM45 (ruling N10): kills of respawned monsters may pass the total,
+            // which counts placed monsters only (p_mobj.c:789-790), when monsters
+            // respawn (skill 4 or the respawn parameter, g_game.c:1416-1419).
             if !(0..=roster as i32).contains(&kills)
                 || (kills > 0 && kills as usize != placed)
                 || credited < 0
-                || (!self.nightmare && credited > kills)
+                || (credited > kills && !self.respawning())
             {
                 return Err(DiagnosticError::Identity);
             }
