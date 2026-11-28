@@ -201,7 +201,7 @@ pub(crate) fn wrapping_intercept(
 /// [`WrapClass`]; `Err` for an `INT_MIN` operand or `FixedDiv2`'s range. The
 /// exact `den` and `num` are the same expressions in 64-bit integers (each
 /// `FixedMul` product, its shift and the sums fit), without any narrowing.
-fn classified(
+pub(crate) fn classified(
     v2_start: [Fixed; 2],
     v2_delta: [Fixed; 2],
     v1_start: [Fixed; 2],
@@ -267,43 +267,36 @@ pub(crate) fn policy_intercept(
     if world.wrapping_intercept {
         match wire27_intercept(caller, v2_start, v2_delta, v1_start, v1_delta) {
             Ok(value) => Some(value),
-            Err(refusal) => wire29_intercept(
-                world, caller, refusal, v2_start, v2_delta, v1_start, v1_delta,
-            ),
+            Err(refusal) => {
+                world.wire29_intercept(caller, refusal, v2_start, v2_delta, v1_start, v1_delta)
+            }
         }
     } else {
         crate::sight::checked_intercept(v2_start, v2_delta, v1_start, v1_delta)
     }
 }
 
-/// Wire 29 alone (ruling N9 (a)): besides wire 27's classes, the slide trace's
-/// `Div2` with an exact den and a wrong num, the class audit 1's item WRAP takes
-/// when an overshooting walk (p_maputl.c:846-876) meets a far line and a
-/// `FixedMul` product narrows (m_fixed.c:48, implementation-defined, not
-/// undefined): the genuine engine's value, which comes out negative there and is
-/// dropped (p_maputl.c:591-592). Every other refusal stands; older wires never
-/// reach this (no `parameters`).
-#[cold]
-fn wire29_intercept(
-    world: &StaticWorld,
-    caller: InterceptCaller,
-    refusal: Wire27Refusal,
-    v2_start: [Fixed; 2],
-    v2_delta: [Fixed; 2],
-    v1_start: [Fixed; 2],
-    v1_delta: [Fixed; 2],
-) -> Option<Fixed> {
-    let num_wrong = Wire27Refusal::Unevidenced(WrapClass::Div2 {
-        den: Operand::Exact,
-        num: Operand::Wrong,
-    });
-    if world.parameters.is_none() || caller != InterceptCaller::Slide || refusal != num_wrong {
-        return None;
+/// The wire 29 seam of [`policy_intercept`]: `StaticWorld`'s inherent
+/// `wire29_intercept` (nightmare.rs) takes precedence over this default, which
+/// keeps wire 27's refusal. The frozen tools/reference/wire27_read_main.rs
+/// compiles this file with a stub world that has no such method, so the
+/// default is used there alone.
+#[allow(dead_code)]
+pub(crate) trait Wire27Refuses {
+    /// Wire 27's refusal stands.
+    fn wire29_intercept(
+        &self,
+        _: InterceptCaller,
+        _: Wire27Refusal,
+        _: [Fixed; 2],
+        _: [Fixed; 2],
+        _: [Fixed; 2],
+        _: [Fixed; 2],
+    ) -> Option<Fixed> {
+        None
     }
-    let (value, _) = classified(v2_start, v2_delta, v1_start, v1_delta).ok()?;
-    let fault = crate::nightmare::planted(crate::nightmare::Fault::WrapZero);
-    Some(if fault { Fixed::ZERO } else { value })
 }
+impl Wire27Refuses for StaticWorld {}
 
 /// Why wire 27 refuses a `P_InterceptVector` for a caller.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

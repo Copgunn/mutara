@@ -15,6 +15,7 @@
 //! `tics == -1` branch and `P_NightmareRespawn` (p_mobj.c:356-409, 450-471;
 //! docs/M6B_REFERENCE_INVESTIGATION.md §1.6).
 use crate::identity::{OriginalActorType, OriginalState};
+use crate::intercept_vector::{InterceptCaller, Operand, Wire27Refusal, WrapClass, classified};
 use crate::lifecycle::{ActorAccess, LifeHost};
 use crate::{
     ActorId, ActorTypeId, SimError, Simulation, Skill, SpawnHeight, StaticWorld, TicCommand,
@@ -114,6 +115,41 @@ pub(crate) fn with_fault<R>(fault: Fault, f: impl FnOnce() -> R) -> R {
     let result = f();
     FAULT.with(|c| c.set(None));
     result
+}
+
+impl StaticWorld {
+    /// Wire 29 alone (ruling N9 (a)): besides wire 27's classes, the slide trace's
+    /// `Div2` with an exact den and a wrong num, the class audit 1's item WRAP takes
+    /// when an overshooting walk (p_maputl.c:846-876) meets a far line and a
+    /// `FixedMul` product narrows (m_fixed.c:48, implementation-defined, not
+    /// undefined): the genuine engine's value, which comes out negative there and is
+    /// dropped (p_maputl.c:591-592). Every other refusal stands; older wires never
+    /// reach this (no `parameters`). Reached through
+    /// `crate::intercept_vector::Wire27Refuses`'s seam in `policy_intercept`.
+    #[cold]
+    pub(crate) fn wire29_intercept(
+        &self,
+        caller: InterceptCaller,
+        refusal: Wire27Refusal,
+        v2_start: [Fixed; 2],
+        v2_delta: [Fixed; 2],
+        v1_start: [Fixed; 2],
+        v1_delta: [Fixed; 2],
+    ) -> Option<Fixed> {
+        let num_wrong = Wire27Refusal::Unevidenced(WrapClass::Div2 {
+            den: Operand::Exact,
+            num: Operand::Wrong,
+        });
+        if self.parameters.is_none() || caller != InterceptCaller::Slide || refusal != num_wrong {
+            return None;
+        }
+        let (value, _) = classified(v2_start, v2_delta, v1_start, v1_delta).ok()?;
+        Some(if planted(Fault::WrapZero) {
+            Fixed::ZERO
+        } else {
+            value
+        })
+    }
 }
 
 /// The thirteen states the fast table halves (g_game.c:1423-1424).
