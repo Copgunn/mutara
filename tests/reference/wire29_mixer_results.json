@@ -23,11 +23,11 @@
   "tools/reference/m5c_starts.py": "757cfcda4392220aaa3e0da111c5162fe8a2e1aa3d74692ff7c759d6f8460235",
   "tools/reference/m5c_mixer_driver.c": "8712383a896c7ff4a9be330e1457c7e321262180f215568ea211ee78b2b15af3"
  },
- "items": 13,
- "starts": 308,
- "tics": 9443,
- "buffers": 5815,
- "goldens_sha256": "146d50f1d05b1886e26c3b1c7dd124c0cc4a298308594afca0f3021f5046f766",
+ "items": 14,
+ "starts": 316,
+ "tics": 9631,
+ "buffers": 5934,
+ "goldens_sha256": "ebd400f2ae8466c8bc04b2881572a57942c949129802f33fb964b13f6814bba1",
  "per_item": {
   "BLOCK4": {
    "sound_sha256": "dd28a61cd23661f1195bc644d45f66898b49fee99f7c2819e0bbbb301a9aceeb",
@@ -155,6 +155,22 @@
     "buffers": 1516,
     "stream_sha256": "bea0137468b0f053a48a08a7fabfc4a8b9bf238f997d6500884b7340f071f0e1",
     "rows_sha256": "2b5a618a13dd35f560a1301f12effa8a04063af6d9392affea847c8b9ca96358"
+   }
+  },
+  "DEADEXIT": {
+   "sound_sha256": "6b1ab2b59f0084e512b1099a02bbe5e127b211c5a86312ab6995ade346cd28c0",
+   "starts": 8,
+   "tics": 188,
+   "starts_sha256": "d7f351d401bae85cdc808fcdb17c2b39961d74a0406d188e2ee53356097cd371",
+   "buffers": 119,
+   "stream_sha256": "98ba7cd177a442ffd51551f4e3a2e58eda52abdc977e9b8669e7be787c623f3e",
+   "golden_sha256": "d8ec7a685bc173774efebedd3dbf7531b8e9a5d8479c647866f6bcd8f7644aab",
+   "model": "identical",
+   "variants": "identical",
+   "pertic": {
+    "buffers": 190,
+    "stream_sha256": "e2b096956ad9bcdc4ef9dad5f06f00db57105e9bb4375a1a0752d6f58da0fa23",
+    "rows_sha256": "1cf510c6eccec13e8543f917016e8b0f4fbb1823a40e99d127d34a8a34960b36"
    }
   },
   "DEADSPEC": {

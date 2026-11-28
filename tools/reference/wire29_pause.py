@@ -41,6 +41,11 @@ the byte edits its text file lists (session tics):
             G_BuildTiccmd puts it in the next command, 426-428), pauses; 0x81 on 144 unpauses. No command can arrive
             during a melt. Its rendered run is also made with --melt-clock unit
             for the melt rows (m6a2_goldens.melt_text).
+  DEADEXIT  tests/reference/m6a_scripts/RBXDEAD.lmp (rbx.wad: the dead player's sliding body crosses the W1 exit, the
+            intermission, E1M2): 0x81 on the E1M2 load tic. G_DoLoadLevel makes PST_DEAD PST_REBORN (g_game.c:479-480),
+            so P_SpawnPlayer's G_PlayerReborn clears P_SetupLevel's viewz 1 (p_setup.c:604, g_game.c:815) and the
+            paused frames, from G_DoWorldDone, are drawn from viewz 0; 0x81 on tic 152 unpauses. Its V row is the
+            altered engine VARIANTS['viewz1'] (the reborn player keeps viewz 1): its first differing paused frame.
 Each new item is also run rendered at screenblocks 10 (strict build; its dumps must equal the plain run's), for its
 frame stream (m6a_goldens.golden_frames) and its M6b stream (the paused frames' B rows and the MP rows of the pause's
 music calls), and its sound stream (m6a_goldens.golden_sound) is kept (M6b step 7).
@@ -102,7 +107,17 @@ NEW = {
                   what='0x81 on the tics around the two melts: the completion tic (the melt ends on the paused '
                        'intermission), the intermission\'s last tic (the melt starts from it; the load clears paused) '
                        'and the first tic after that melt'),
+    'DEADEXIT': dict(base='tests/reference/m6a_scripts/RBXDEAD.lmp', wads=['tests/reference/m6a_wads/rbx.wad'] + WAD.SHARED,
+                     frames=10, variant='viewz1', edits=[('buttons', 148, PAUSE), ('buttons', 152, PAUSE)],
+                     what='the dead player\'s body crosses the W1 exit (RBXDEAD), then 0x81 on the E1M2 load tic: '
+                          'G_DoLoadLevel makes PST_DEAD PST_REBORN (g_game.c:479-480), so the paused first frame is '
+                          'from G_PlayerReborn\'s viewz 0 (g_game.c:815), not P_SetupLevel\'s 1; 0x81 four tics later'),
 }
+# The planted fault's altered genuine engine (m6b_build.variant, exact-once): a reborn player keeps P_SetupLevel's viewz 1
+# (as if G_PlayerReborn's memset did not clear it, g_game.c:815). Its V row: the first paused tic whose B row differs from
+# the strict run's, and the variant's frame digest there.
+VARIANTS = {'viewz1': {'p_mobj.c': [('    if (p->playerstate == PST_REBORN)\n\tG_PlayerReborn (mthing->type-1);\n',
+                                     '    if (p->playerstate == PST_REBORN)\n\t{ G_PlayerReborn (mthing->type-1); p->viewz = 1; }\n')]}}
 sha = lambda b: hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
 
 
@@ -200,13 +215,26 @@ def state_text(name, r, caps, f, extra):
             '#columns,I,item,skill,respawnparm,fastparm,tics,captures,dumps_sha256,sequence_sha256',
             '#columns,C,item,capture,state_sha256', '#columns,O,fact,value',
             '#columns,H,tic,message_on (the frame stream P row at screenblocks 10)', '#columns,X,tic,message shown']
+    if any(x.startswith('V,') for x in extra):
+        head.append('#columns,V,variant,item,tic,frame_sha256 (its first paused frame that differs, screenblocks 10)')
     rows = [f"I,{name},{data[1]},{data[5]},{data[6]},{tics},{len(caps)},{sha(''.join(r['digests']))},{seq}"]
     rows += [f'C,{name},{j},{d}' for j, d in enumerate(caps)]
     rows += [f'O,{k},{v}' for k, v in f.items()]
     return '\n'.join(head + rows + extra) + '\n'
 
 
-def new_item(name, bins, work, selftest):
+def variant_row(name, bins, work, wads, sb, strict_pause, cc):
+    """The V row of the item's variant: V,variant,item,tic,frame_sha256 of the first paused frame that differs."""
+    v = NEW[name]['variant']
+    rv = run(B.variant(v, VARIANTS[v], work / 'build', cc), name, work / 'runs' / f'{name}_{v}', wads, sb=sb)
+    b = lambda t: [l.split(',') for l in t.splitlines() if l.startswith('B,')]
+    hit = next((x for x, y in zip(b(rv['m6b']), b(strict_pause)) if x != y), None)
+    if not G.clean(rv) or hit is None: sys.exit(f'{name}: the variant {v} is not clean or changes no paused frame')
+    head = next(l.split(',') for l in strict_pause.splitlines() if l.startswith('#columns,B,'))[2:]
+    return [f"V,{v},{name},{hit[1]},{hit[1 + head.index('frame_sha256')]}"]
+
+
+def new_item(name, bins, work, selftest, cc='cc'):
     """The new item's files, or exit on a failure."""
     it = NEW[name]
     data, _ = lump(name)
@@ -232,6 +260,7 @@ def new_item(name, bins, work, selftest):
     if not G.clean(rr) or rr['digests'] != s['digests'] or rr['sound'] != s['sound']:
         sys.exit(f'{name}: the rendered run differs')
     extra = hud_rows(rr['frames']) if it.get('sb') else []
+    if it.get('variant'): extra += variant_row(name, bins, work, wads, sb, rr['m6b'], cc)
     melt = {}
     if it.get('melt'):
         ru = run(bins['strict'], name, work / 'runs' / f'{name}_unit', wads, sb=sb, extra=['--melt-clock', 'unit'])
@@ -279,7 +308,7 @@ def main():
         if not ok: return 1
     for name in NEW:
         if only and name not in only: continue
-        out.update(new_item(name, bins, work, a.selftest))
+        out.update(new_item(name, bins, work, a.selftest, a.cc))
     if only: print('--only: nothing written or compared'); return 0
     if a.check:
         bad = [str(p.relative_to(ROOT)) for p, d in out.items() if not p.exists() or p.read_bytes() != d]
