@@ -5,13 +5,16 @@
 //! new game, and a missing `M_PAUSE` refused at the first paused tic (decision D24 of step 7).
 //! Rust-only checks; the genuine engine plays such recordings in `tools/local/wire29_play_check.py`.
 
+use crate::keys::{Mute, key_event};
 use crate::melt_tests::at;
 use crate::{HELP, parse};
 use doom_game::app::{App, Ending, GameData, GameParameters, Host, Mode, SessionConfig};
 use doom_game::app::{PAUSE_COMMAND, Timestamp, Witness};
+use doom_game::input::Preset;
 use doom_game::input::keys::{KEY_ESCAPE, KEY_PAUSE, KEY_UPARROW};
 use doom_game::session::demo::{SessionDemo, replay_finale_and_melt};
 use doom_game::session::{ModeSetting, Session, SessionSettings, SessionWitness};
+use miniquad::KeyCode;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -210,6 +213,60 @@ fn the_pause_key_records_the_original_command_and_replays() {
     assert_eq!((s.gametic(), s.paused(), s.parameters()), (0, false, BOTH));
     assert_eq!(state(s), state(&fresh(BOTH).expect("a new game")));
     assert!(app.recorder().is_empty());
+}
+
+impl Mute for FileHost {
+    fn toggle_mute(&mut self) {}
+}
+
+/// Ruling D40(a): under `--bindings modern` P is a second Pause key, through the window's
+/// `key_event`: two presses (the first auto-repeated a tic later, which is dropped as Pause's is)
+/// give a demo equal byte for byte to the Pause key's, with the two pause commands (0x81,
+/// g_game.c:426-430). Under vanilla P reaches the game as `p`: no pause command, not paused.
+#[test]
+fn p_is_a_second_pause_key_under_modern_bindings_only() {
+    let record = |preset, key| {
+        let mut host = FileHost::default();
+        let cfg = SessionConfig {
+            preset,
+            ..SessionConfig::default()
+        };
+        let mut app = App::new(data(true), cfg, &mut host);
+        let (mut k, mut presses) = (0, vec![]);
+        for t in [20, 30] {
+            run_to(&mut app, &mut host, &mut k, t);
+            let t = app.tic();
+            presses.push(t);
+            key_event(&mut app, &mut host, key, true, false);
+            run_to(&mut app, &mut host, &mut k, t + 1);
+            key_event(&mut app, &mut host, key, true, true);
+            key_event(&mut app, &mut host, key, false, false);
+        }
+        run_to(&mut app, &mut host, &mut k, 40);
+        let paused = app.session().expect("session").paused();
+        app.quit(&mut host);
+        let bytes = host.saved.pop().expect("a demo file").1;
+        let (demo, _) = SessionDemo::parse_v4(&bytes).expect("the wire 29 reader");
+        let pauses: Vec<u64> = (demo.commands.iter().enumerate())
+            .filter_map(|(t, c)| (c.buttons == PAUSE_COMMAND).then_some(t as u64))
+            .collect();
+        (paused, pauses, presses, bytes)
+    };
+    assert_eq!(PAUSE_COMMAND, 0x81);
+    let (paused, pauses, presses, bytes) = record(Preset::Modern, KeyCode::Pause);
+    assert!(
+        !paused && pauses == presses && pauses.len() == 2,
+        "{pauses:?}"
+    );
+    let p = record(Preset::Modern, KeyCode::P);
+    assert_eq!(
+        (p.0, &p.1, &p.3),
+        (paused, &pauses, &bytes),
+        "byte for byte"
+    );
+    let p = record(Preset::Vanilla, KeyCode::P);
+    assert_eq!((p.0, p.1.len()), (false, 0), "P is `p` under vanilla");
+    assert!(!p.3.contains(&PAUSE_COMMAND), "no pause byte");
 }
 
 /// Without `M_PAUSE` the first paused tic is refused with the state kept (decision D24 of step 7;
