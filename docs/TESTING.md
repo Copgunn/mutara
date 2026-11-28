@@ -3538,6 +3538,36 @@ cargo +nightly fuzz run TARGET DIR/TARGET --sanitizer address -- -runs=0   # see
 cargo +nightly fuzz run TARGET CORPUS --sanitizer address -- -max_total_time=600 -max_len=300000 -seed=1 -timeout=20 -rss_limit_mb=2048
 ```
 
+**The rest of wire 29's tests and tools.** Observed results of all of these are in [the record](validation/WIRE29.md).
+
+```sh
+# the block-walk overshoot item WRAP (wire 29 follows the wrapping step sum; local, not in CI: it builds the five genuine variants)
+python3 tools/reference/wire29_wrap.py --check
+# the pause animation, docs/media/wire29-pause.gif (--work outside the repository; --check compares; runs cargo; local)
+python3 tools/media/wire29_readme_visual.py --work DIR --check
+# the Rust side not listed above
+cargo test -p doom-sim --lib nightmare_tests            # Rust-only rules, planted faults, DSIM45 reader rules
+cargo test -p doom-game --test wire29_display --test wire29_restore --test wire29_session --test wire29_frames
+cargo test -p doom-sound --test dsnd4_reader
+cargo test -p doom-play wire29                          # the Pause key, P under modern bindings, skill 4 and the flags
+# local only: reads the owner's IWAD in place (a scratch copy), never in CI. Build the two examples first.
+cargo build --release -p doom-sim --example wire29_real -p doom-game --example wire29_session_real
+python3 tools/local/wire29_real.py --iwad IWAD --work DIR --kind skill4,respawn,fast,both,own --jobs 5 --selftest
+python3 tools/local/wire29_real.py --iwad IWAD --work DIR --kind pause,skill4 --session --selftest --jobs 5
+# the hand-test check (ruling N8): recordings doom-play saved, read only; exit 0 = every one equal at both levels
+python3 tools/local/wire29_real.py --iwad IWAD --work DIR --kind sessions --recording FILE [--recording FILE ...] --selftest
+```
+
+- **What `wire29_real.py` compares.** Each recording or inserted-pause run against the genuine M6b runner: the simulation level (every level
+  projected by the `DSIM` 45 encoder, capture by capture) and, with `--session`, the session as `doom-play` plays it (every session tic's G
+  columns and every level capture, paused tics included). `--selftest` must catch a changed command and an extra `P_Random` draw (and, for
+  the pause kind, commands that replace meaningful input). It does **not** compare frames, sound or mixer buffers on real maps; the synthetic
+  items do that in CI. `--selftest-recording TICS` makes a recording headlessly through `doom-play`'s own app for a self-run.
+- **Mutation testing of wire 29** follows the method below with the two judges of the record's [section 12](validation/WIRE29.md#12-mutation-testing);
+  its `doom-sim` and `doom-game` results are pending there.
+- **Fuzz campaigns** used `cargo +nightly fuzz run` with the default AddressSanitizer build, leak detection on, 601 seconds each, and a
+  leak plant that must fail; options and counts are in the record's [section 11](validation/WIRE29.md#11-fuzzing-and-sanitizers).
+
 ## Mutation testing
 
 M4a used cargo-mutants 27.1.0 with cargo-nextest 0.9.151. These are separate

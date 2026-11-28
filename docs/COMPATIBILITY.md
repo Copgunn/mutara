@@ -94,6 +94,7 @@ number in brackets is the policy's identifier in saved test snapshots; the earli
 | `PlayerMonstersEpisode1V4` (26) | Episode 1, part 4 (M6a): wire 25 plus a level start (new game, carried player or reborn), the walk exits 52 and 124 and the session's `gametic` for the turbo test; the level chain, played by `doom-play`; skills 2 and 3 only. It stays the wire of part 1's session configuration, which the libraries keep | [One session](#episode-1-as-one-session-m6a) |
 | `PlayerMonstersEpisode1V5` (27) | Episode 1, part 5: wire 26 with `P_InterceptVector`'s `int` wrap reproduced for the caller and wrap-class pairs a genuine item takes, and refused for every other; sight stays checked; the real E1M8 skill 2 sessions that wire 26 refuses. M6a part 2's finale-and-melt session, which `doom-play` played until wire 28, ran on this wire (no new wire for the finale and the melt; pull request #80) | [Wire 27](#wire-27-the-wrapping-p_interceptvector) |
 | `PlayerMonstersEpisode1V6` (28) | Episode 1, part 6: wire 27 plus skills 0 and 1 (double ammunition and halved damage at skill 0), the Demon bite taking the sector-11 cap, and E1M7 on skill 3 (spawn rule S'' with the monster escape witness); `DSIM` 44. The session configuration on this wire, which `doom-play` plays for every skill; nightmare stays refused | [Wire 28](#wire-28-the-easy-skills-and-e1m7-on-skill-3) |
+| `PlayerMonstersEpisode1V7` (29) | Episode 1, part 7 (M6b): wire 28 plus skill 4 (Nightmare), the `-respawn` and `-fast` options, the corpse respawn, kills above the level total, the original's pause (a command byte with bit 7, the paused tic, the turbo message against the session's `gametic`) and the block-walk's wrapping step sum; `DSIM` 45, `DSES` 4, `DDSP` 5, `DSND` 4, demo version 4. The session configuration on this wire, which `doom-play` plays for every skill, with the Pause key sending the original's command | [Wire 29](#wire-29-nightmare-respawn-fast-and-the-originals-pause) |
 
 ## Versioned gameplay profiles
 
@@ -2984,7 +2985,7 @@ and keeps the genuine path from there on (decision S4).
   unmeasured. Under always-run the layer posts the run key again at the load; a physical run key held through the load (walking) therefore runs until its own repeat arrives (read from the code, not tested). A held left mouse button fires again at
   the next mouse event (any motion), as in the original (read from the code; the tests cover keys only). Every one of these events goes through the normal path, so the
   input log and the demo hold it. **The path of a repeat:** the window (`doom-play`'s `key_event`) passes an auto-repeated
-  keydown to the app only while it is playing and only for a key other than Esc and Pause; the layer then drops it as the
+  keydown to the app only while it is playing and only for a key other than Esc and Pause (and `P` under `--bindings modern`, which is mapped to Pause); the layer then drops it as the
   repeat of a key it holds, except after a load. On the pause and end screens a repeat is dropped, so a held Esc, R or Q
   acts once; the mute key acts on its first down only. One side effect: an R still held after it restarted a session
   reaches the new session's event stream as a keydown of `r` (bound to nothing in either preset, so no command changes).
@@ -3001,7 +3002,7 @@ and keeps the genuine path from there on (decision S4).
   - The same applies to a pause by Esc: the held key gets no repeat after the resume. The resume at the next repeat
     ("Pause and focus" below) is reached after a focus loss, or when the held key was the last one pressed. The two
     runs did not include a pause or a focus loss; this follows from the keyboard behaviour above.
-- **Never forwarded** (decision S5): Esc and Pause (the app's own pause), Enter, Tab, `-`, `=`, `q` and F1-F12.
+- **Never forwarded as game keys** (decision S5): Esc (the app's own pause; under wire 29 Pause and `P` under modern bindings send the original's pause command instead, [below](#wire-29-nightmare-respawn-fast-and-the-originals-pause)), Enter, Tab, `-`, `=`, `q` and F1-F12.
   The genuine effects of these (menus, automap, screen size, gamma, message refresh, ending a recording) are out
   of scope, and a withheld key cannot be bound. The cheat matcher is not ported: the letters of a cheat code
   reach the game as ordinary keys and do nothing, whereas the genuine engine would act on a completed code
@@ -3013,7 +3014,7 @@ and keeps the genuine path from there on (decision S4).
   (`--bindings modern`): W, A, S, D move and strafe, E uses, P is a second Pause key (it sends exactly what Pause
   sends; owner's ruling D40(a), 2026-11-27), always run, left button fires, no vertical mouse motion, no middle or
   right button action; the other keys as vanilla.
-- **Pause and focus.** Esc or Pause pauses the app (below). The window library (miniquad 0.4.11) reports the
+- **Pause and focus.** Esc pauses the app (below); so does Pause in every configuration older than wire 29, where the Pause key sends the original's command instead. The window library (miniquad 0.4.11) reports the
   window being minimised or losing focus through its minimise event, and `doom-play` turns that event into a pause.
   Every pause releases every held key and button through the event layer. **A key still physically held is down again
   after the resume at its next keyboard repeat** (kept by the owner's ruling of 2026-11-23): since the load-input fix the
@@ -3075,10 +3076,10 @@ fault ([evidence](validation/M5B.md#step-7b-full-resolution-unrecorded-turning))
   Unlike vanilla, which draws one picture per loop pass, the app draws **after every tic** (the M5a render
   contract), and shows the last. No clock or file type reaches the simulation: a session's tics are a function
   of its events and of how many tics each update ran.
-- **Pause** (decision S12). Esc or Pause stops tics; the simulation, the render state and the demo are
-  untouched; the clock is re-based on resume; the "paused" overlay is drawn only on the presented picture, never
-  into the proven frame. From the pause: Esc or Pause resumes, R restarts, Q quits. This is not vanilla's pause
-  (a `BT_SPECIAL` command, not admitted).
+- **Pause** (decision S12). Esc or a focus loss stops tics (so does Pause in configurations older than wire 29); the simulation, the
+  render state and the demo are untouched; the clock is re-based on resume; the "paused" overlay is drawn only on the presented
+  picture, never into the proven frame. From the pause: Esc resumes (Pause too before wire 29; under wire 29 it does nothing there),
+  R restarts, Q quits. This is not vanilla's pause: under wire 29 vanilla's pause (a `BT_SPECIAL` command) is the Pause key's, and Esc works during it.
 - **End and refusal screens** (decisions S9, S10). At the level's exit, or when the dead player presses use, the
   app shows its own end screen ("level complete" or "you died", the tic count and the demo's file name; the full
   path goes to the console only), in its own font and five-colour palette, with R to restart and Q or Esc to quit.
@@ -3182,7 +3183,7 @@ the next tic is due and keeps the library's default swap interval. The mouse is 
 - **Focus loss.** The window library (miniquad 0.4.11) reports focus loss and minimising through one minimise
   event, and the app pauses and releases every held key and button on it (see "Pause and focus" above for what
   was observed under WSLg on 2026-11-17 and what was not checked: Alt-Tab, minimising by hand, Windows, macOS
-  and whether keys are seen released). Pressing Esc or Pause before switching windows is the safe habit.
+  and whether keys are seen released). Pressing Esc before switching windows is the safe habit (the Pause key pauses the level, not the app, under wire 29).
   Raw mouse motion is delivered by the library whatever the focus, and the app uses it only while playing.
 - **Linux under WSLg** is the platform the program was run on (X11 and Wayland, each ran to the tic count with
   an idle session; Wayland printed compositor and Mesa warnings and probably used a software fallback).
@@ -3741,7 +3742,7 @@ file), the owner's rulings U5 and U6. `BT_SPECIAL` is never recorded and is refu
 
 ### What is refused or not built yet
 
-**Superseded for `doom-play` by [wire 28](#wire-28-the-easy-skills-and-e1m7-on-skill-3):** skills 0 and 1 and E1M7 on skill 3 now play, and only nightmare is refused at launch. The rest of this section describes parts 1 and 2's configurations, which the libraries keep with their refusals.
+**Superseded for `doom-play` by [wire 28](#wire-28-the-easy-skills-and-e1m7-on-skill-3):** skills 0 and 1 and E1M7 on skill 3 now play, and only nightmare is refused at launch; **[wire 29](#wire-29-nightmare-respawn-fast-and-the-originals-pause) supersedes that too** (nightmare, `--respawn`, `--fast` and the original's pause play). The rest of this section describes parts 1 and 2's configurations, which the libraries keep with their refusals.
 
 The refusals keep the complete state and end the session with a plain screen: **NOT BUILT YET** (yellow) or **TIC REFUSED**
 (red), the session tic and the message below, and the demo kept so it replays to the same refusal. In the finale-and-melt
@@ -3992,7 +3993,7 @@ constructors `original_player_episode1_v6_level` and `_at`) is wire 27 in every 
 
 - **Admitted:** skills 0 to 3, THING bit 1 for both easy skills, E1M7 on skill 3 with the one imp S'' admits. **Refused:** skill 4 (nightmare:
   `doom-play` exits at launch, "--skill: nightmare (4) is not built yet"; the profile's skill check refuses it as before); every older wire still refuses skills 0
-  and 1 (`NotYet(EasySkill)` in the session) and keeps S' (E1M7 on skill 3 stays refused there).
+  and 1 (`NotYet(EasySkill)` in the session) and keeps S' (E1M7 on skill 3 stays refused there). **Wire 29 admits skill 4.**
 - **The witness is a refuse-the-tic witness, not behaviour.** The original lets a monster or a corpse that is thrust through a one-sided wall
   carry on beyond the map; wire 28 admits the monster at spawn and stops the session at that tic with a TIC REFUSED screen and the demo kept.
   Which blows can do it (barrels, rockets, a berserk punch, from short distances; west and south more readily than east and north) is in the
@@ -4011,6 +4012,51 @@ skipped the cap (p_inter.c:836-842) in `strike_player`, where the genuine engine
 (BITE2 first differs at capture 97: the player dies under wire 27); wires 23 to 26 share the code (observed Rust-only by the independent reader's scratch probe, below). No recorded run differs under wire 27 (inferred: none reached a lethal bite there). Wire 28 applies the cap (decision D4, [record](validation/WIRE28.md#2-decisions)).
 
 **2026-11-26 (certificate audit 1):** confirmed against the genuine engine on every wire 23 to 27, for the Demon bite (BITE2) and the Spectre bite (SPECTRE): each first differs at capture 97, the Rust player dead where the genuine one has health 1; wire 28 caps both. Every other damage path is capped on every wire that admits it ([AUDIT1 section 1](validation/AUDIT1.md#1-the-sector-11-cap-per-damage-path-and-per-wire)). **E1M8 is the only Episode 1 map with a sector of special 11**; Demons spawned there at skills 0, 1, 2 and 3: 8, 8, 14, 18 (inside that sector: 4, 4, 6, 6), Spectres 0, 0, 0, 10 (inside: 0, 0, 0, 10), so on wires 23 to 27 (skills 2 and 3 only) ordinary play of E1M8 can reach the divergence (inferred; no recorded run shows it). It is **not reachable through `doom-play`**, which plays wire 28 for every skill ([AUDIT1 section 2](validation/AUDIT1.md#2-the-demon-and-spectre-bite-on-wires-23-to-27)). Still frozen.
+
+## Wire 29: Nightmare, respawn, fast and the original's pause
+
+**Status: implemented on [PR #89](https://github.com/Copgunn/mutara/pull/89) (draft, 2026-11-27, not merged).** `PlayerMonstersEpisode1V7` (29,
+`DSIM` 45, constructor `original_player_episode1_v7_level_at`) is wire 28 in every respect except the rules below. Wires 1 to 28, `DSIM` 42 to 44,
+`DDSP` 3 and 4, `DSND` 2 and 3, `DSES` 1 to 3 and the demo readers of versions 2 and 3 are unchanged byte for byte (a run, not only a reading:
+[record §13](validation/WIRE29.md#13-the-frozen-wires-and-the-instruction-counts)). It carries the owner's rulings N1 to N11 of 2026-11-26
+([note](M6B_REFERENCE_INVESTIGATION.md#rulings)). Evidence: [the wire 29 record](validation/WIRE29.md); the C facts: [the M6b note](M6B_REFERENCE_INVESTIGATION.md).
+
+| Rule | What wire 29 does | Source |
+| --- | --- | --- |
+| Skill 4 (`sk_nightmare`) | Admitted; spawns THING bit 4; every `P_GiveAmmo` amount doubled (damage is not halved); every mobj spawns with `reactiontime` 0 (a respawned monster gets 18) | p_mobj.c:743-751, 503-504; p_inter.c:95-101, 799-800 |
+| `-respawn`, `-fast` | `GameParameters`, two options saved in the state; `respawnmonsters` is skill 4 or `-respawn`; the fast table is a function of the options (skill 4 or `-fast`): the thirteen Demon and Spectre states halved, the three missile speeds 20 | g_game.c:1416-1436 |
+| `A_Chase` | After an attack the monster picks no new direction on skill 4 or with `-fast`; it may fire with `movecount` left | p_enemy.c:716-722, 738-742 |
+| The corpse respawn | A `MF_COUNTKILL` corpse at `tics` -1 counts `movecount` to 420, then on every 32nd leveltime draws `P_Random` (at most 4 passes) and, if its spawn point is free for the corpse, makes two fogs and the monster there, with `reactiontime` 18, and removes the corpse | p_mobj.c:356-409, 450-471 |
+| Kills above the total | The DSIM45 reader no longer refuses a kill count above the level's total; the intermission shows the percentage past 100 | wi_stuff.c (Q-wi_stuff-1338) |
+| The pause: command | A command byte with bit 7 (`BT_SPECIAL`) is admitted except the save command (low bits 10); a live player's buttons are zeroed after the move, a dead player's are read raw; `0x40` alone and the save command stay refused | g_game.c:698-708; p_user.c:227, 280-281 |
+| The pause: the stopped level | A paused tic runs no thinkers; `gametic` goes on (`level.gametic_lead`), the turbo message is tested against it; the status bar's ticker and the message timer go on; the M_PAUSE picture is drawn; sounds play out; the sound's pause and resume calls are modelled; a level load clears the pause | p_tick.c:135-136; g_game.c:494, 672-679; d_main.c:303-311; s_sound.c:497-513 |
+| Walk step sum | The `int` step sum of `P_PathTraverse` (p_maputl.c:868, 873) wraps where it leaves `int`, as the strict build does and as wire 27 follows `P_InterceptVector`; the slide trace's wrap class of item `WRAP` takes the genuine value | p_maputl.c:802-876 |
+
+- **Admitted:** skills 0 to 4, `-respawn`, `-fast`, the pause. **`doom-play`** plays this wire for every skill (decision D36): `--skill 4|nightmare`,
+  `--respawn`, `--fast` (header bytes 5 and 6, and the exit line); the **Pause key** sends the original's command (`0x81`, recorded in the demo,
+  executed, the PAUSE picture, sounds play out, Pause again goes on); under `--bindings modern` **`P` is a second Pause key** (owner's ruling D40(a)).
+  **Esc and focus loss keep the app's own pause**, outside the demo; while it holds, the Pause key does nothing; Esc works during the original's pause
+  (ruling N7). No cheat lockout exists anywhere: the original has none either, and cheats are not ported.
+- **Refused or not reproduced, and why it is not a silent divergence:**
+  (1) **A read of a freed respawned corpse** (a player's `attacker` or a monster's `target` that `A_Chase` reads after the corpse's block was freed)
+  refuses the tic with `FreedRead`, state kept; the genuine engine reads the bytes the corpse left, defined only while no later allocation reuses
+  the block ([Q-p_mobj-408](quirks/p_mobj.c.md), items `STALE` and `STALE2`).
+  (2) **A missing or malformed M_PAUSE** refuses the first paused tic. (3) **A missile farther from the map's origin than 32,767 units less margins** (D17) is refused.
+  (4) **The pause picture below screen size 10** and sizes below 10 are not drawn: the session admits 10 and 11 only (the picture's place is
+  compared at 10 and 9). (5) **Table histories (N4):** a second `-fast` game in one process, a loaded save and the level-warp cheat are not
+  reachable by the app and not built; `doom-play`'s restart is a new process; the genuine goldens and quirk rows are kept. (6) A **demo-playback
+  pause** (g_game.c:664-667) has no counterpart: the app plays no demo. (7) The save command and a bit-6-alone byte stay refused.
+- **Reproduced beyond the old limits (not refusals):** a monster that does not fit its sector is spawned on its floor, as the C does (D11); a fast
+  fireball that leaves the map is followed outside (finding F1, owner's ruling of 2026-11-27, [record §7](validation/WIRE29.md#7-finding-f1-a-fast-fireball-through-a-maps-outer-wall));
+  the corpse of a monster crushed by a door respawns inside the closed door.
+- **Formats:** [DSIM45](STATE_FORMAT.md#dsim-v45--wire-29-nightmare-and-the-originals-pause) and the
+  [session formats](STATE_FORMAT.md#session-formats-of-wire-29-dses-4-ddsp-5-dsnd-4-demo-version-4). The session configuration is
+  `Configuration::FinaleAndMeltWire29`. A `DSES` 4 state can be saved while paused and restored.
+- **Evidence and its limits:** the 19 synthetic items and the later ones (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `WRAP`, `DEADSPEC`, `LOADP`, `TURBOP`,
+  `REBORNP`) equal the genuine engine at every capture, frame, sound row and mixer buffer where the record says so; real maps: REAL-MAP-FIGURES-PENDING; the owner's
+  hand test (six recordings, 836 paused tics, 14 genuine respawns) equals the genuine engine at both levels, on the state, not on frames or sound.
+  Not covered: the finale on a real map with a pause, Cacodemons, `MT_SPAWNCEILING`, a reused zone block, the original's music while paused, other table histories.
+  Mutation testing of the `doom-sim` and `doom-game` diff is pending in the record, and so is the independent read.
 
 ## Known gap: THING loading stops at the first Doom II type outside commercial mode
 
