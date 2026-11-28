@@ -325,6 +325,11 @@ fn the_demo_readers_clamp_is_caught_at_the_clamp_variants_capture() {
 /// parameters: its golden's rows, split by comma, and the port's play of its demo against the
 /// golden's captures.
 fn wire29_item(name: &str, wad: &str) -> (Vec<Vec<String>>, Play) {
+    wire29_item_past(name, wad, 0)
+}
+/// [`wire29_item`], played `past` tics beyond the last capture (compared with
+/// nothing): the tic at which the genuine runner stopped before its dump.
+fn wire29_item_past(name: &str, wad: &str, past: usize) -> (Vec<Vec<String>>, Play) {
     let golden = format!("wire29_stale/{}_state.txt", name.to_lowercase());
     let text = std::fs::read_to_string(reference(&golden)).expect("golden");
     let rows: Vec<Vec<String>> = text
@@ -332,11 +337,12 @@ fn wire29_item(name: &str, wad: &str) -> (Vec<Vec<String>>, Play) {
         .filter(|l| !l.starts_with('#'))
         .map(|l| l.split(',').map(str::to_owned).collect())
         .collect();
-    let captures: Vec<String> = rows
+    let mut captures: Vec<String> = rows
         .iter()
         .filter(|f| f[0] == "C")
         .map(|f| f[3].clone())
         .collect();
+    captures.extend((0..past).map(|_| "not dumped".to_owned()));
     let (map, commands) = demo_at(&format!("wire29_stale/{name}.lmp"));
     let i = rows.iter().find(|f| f[0] == "I").expect("the I row");
     let skill =
@@ -403,6 +409,74 @@ fn a_freed_target_is_refused_where_the_genuine_engine_first_reads_it() {
         "STALE2: {} captures equal, FreedRead at session tic {first}",
         p.digests.len()
     );
+}
+
+/// The barrel and missile items of `tools/reference/wire29_stale.py` (findings R1
+/// and R3): an imp's corpse that respawns and is freed is still a barrel's
+/// `target` (BARREL*) or a flying fireball's (MISS*). The genuine engine reads it
+/// only as a damage source of a victim (p_inter.c:806-809) or at a missile's
+/// contact (p_map.c:298-301): read while pending (BARRELP, MISSP) or never
+/// (BARRELN, MISS0), every capture is equal and nothing is refused; read freed
+/// (BARRELF, MISSF), the port refuses that tic with `FreedRead`, the state kept.
+/// BARRELP and BARRELF's genuine runs stop at the M5b runner's AttackerRemoved
+/// witness (the status bar's read of the corpse) before dumping the tic after
+/// their last capture; BARRELF's freed read is in that tic, which is played and
+/// compared with nothing.
+const REMOVED_SOURCES: [(&str, &str, bool); 6] = [
+    ("BARRELP", "barrel.wad", false),
+    ("BARRELF", "barrel.wad", true),
+    ("BARRELN", "barrel.wad", false),
+    ("MISS0", "miss0.wad", false),
+    ("MISSP", "missp.wad", false),
+    ("MISSF", "missf.wad", true),
+];
+
+#[test]
+fn a_removed_source_or_owner_is_refused_only_where_the_genuine_engine_reads_it_freed() {
+    let mut bad = Vec::new();
+    for (name, wad, freed) in REMOVED_SOURCES {
+        let stop = name.starts_with("BARREL") && name != "BARRELN";
+        let (rows, p) = wire29_item_past(name, wad, usize::from(stop && freed));
+        let fact = |k: &str| rows.iter().find(|f| f[0] == "O" && f[1] == k).expect(k)[2].clone();
+        let captures = rows.iter().filter(|f| f[0] == "C").count();
+        assert_eq!(fact("runner_end") == "AttackerRemoved", stop, "{name}");
+        let want = if freed {
+            let first: usize = fact("first_freed_read").parse().unwrap();
+            (None, Some((first, SimError::FreedRead)), first + 1)
+        } else {
+            assert_eq!(fact("freed_reads"), "0", "{name}");
+            (None, None, captures)
+        };
+        let got = (p.difference, p.refusal, p.digests.len());
+        eprintln!(
+            "{name}: (difference, refusal, digests) {got:?}, genuine {want:?}; pending reads {}",
+            fact("pending_reads")
+        );
+        if got != want {
+            bad.push(name);
+        }
+    }
+    assert!(bad.is_empty(), "differ from the genuine engine: {bad:?}");
+}
+
+/// The planted fault `sweep` (every `target` and `attacker` naming the corpse
+/// cleared at its removal): each item first differs at its `V` row's capture,
+/// where the port's digest is the altered genuine engine's. (The port then
+/// refuses MISS0's and MISSF's next tic: a flying missile without an owner is
+/// refused at the preflight; that tic is not compared.)
+#[test]
+fn the_sweep_fault_is_caught_at_the_variants_capture() {
+    for (name, wad, _) in REMOVED_SOURCES {
+        let (rows, p) = crate::nightmare::with_fault(Fault::Sweep, || wire29_item(name, wad));
+        eprintln!(
+            "{name}: sweep (difference, refusal) {:?}",
+            (p.difference, p.refusal)
+        );
+        let v = rows.iter().find(|f| f[0] == "V").expect("the V row");
+        let k: usize = v[3].parse().unwrap();
+        assert_eq!(p.difference, Some(k), "{name}");
+        assert_eq!(p.digests[k], v[4], "{name}: the variant's digest");
+    }
 }
 
 /// BOSS2 (golden `tests/reference/wire29_stale/boss2_state.txt`, map E1M8): two
