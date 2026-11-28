@@ -118,6 +118,8 @@ NEW = {
 # the strict run's, and the variant's frame digest there.
 VARIANTS = {'viewz1': {'p_mobj.c': [('    if (p->playerstate == PST_REBORN)\n\tG_PlayerReborn (mthing->type-1);\n',
                                      '    if (p->playerstate == PST_REBORN)\n\t{ G_PlayerReborn (mthing->type-1); p->viewz = 1; }\n')]}}
+# LATER: the items with a later level, projected from the state build (state_build).
+LATER, LEVELS_SCHEMA = ('DEADSPEC', 'LOADP', 'REBORNP', 'MELTP', 'DEADEXIT'), 'DOOM-WIRE29-LEVELS-v1'
 sha = lambda b: hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
 
 
@@ -154,7 +156,7 @@ def text(name):
 def run(binary, name, out, wads, sb=None, extra=()):
     """One runner process (m6b_goldens.run's switches) of the demo lump NAME in the last file of `wads`."""
     if out.exists(): shutil.rmtree(out)
-    (out / 'dumps').mkdir(parents=True)
+    (out / 'dumps' / 'loads').mkdir(parents=True)        # the state build's later-load dumps
     cmd = [str(binary), *[x for w in wads for x in ('--wad', str(w))], '--demo', name, '--game-mode', 'registered',
            '--out', str(out / 'dumps'), *[x for k, v in M5C.RECOMMENDED.items() for x in (k, v)],
            *(['--render', 'every', '--screenblocks', str(sb), '--frames', str(out / 'frames.txt')] if sb else ['--render', 'none']),
@@ -184,6 +186,66 @@ def project(r, wads, header):
         d, following = following, (L.Dump(str(r['dumps'] / names[j + 1])) if j < end else None)
         caps.append(WG.digest(proj.step(d, following)[0]))
     return caps
+
+
+def state_build(work, cc):
+    """The strict build with m6a_state.py's exact-once driver and session patches (read-only), which dump every later
+    load (loads/load_T.txt) before its tic 0; the session text is #included by the driver unit, recompiled alone."""
+    st = work / 'build' / 'state'
+    if st.exists(): shutil.rmtree(st)
+    shutil.copytree(work / 'build' / 'strict', st)
+    for f, patches in ((B.DRIVER_NAME, [ST.DRIVER_PATCH]), ('m6a_session.c', ST.SESSION_PATCHES)):
+        (st / 'src' / f).write_bytes(ST.patched((st / 'src' / f).read_bytes().decode('latin-1'), patches).encode('latin-1'))
+    B.compile_unit(cc, B.base.VARIANTS['strict'], 'strict', st / 'src', st / 'obj', B.DRIVER_NAME)
+    return B.link(cc, B.base.VARIANTS['strict'], st / 'obj', st / 'crunner')
+
+
+def later_levels(name, r, wads, header):
+    """Every later level's DSIM45 state digests, as m6a_state.levels projects the M6a items (its rules and helpers,
+    read-only: the previous level's serials dropped, the stale attacker, the carried bob and psprites from the previous
+    level's last dump) with the wire 29 projector: [(load index, load tic, map, kind, [(session tic, digest)])]. `r` is
+    the run of state_build's runner, whose P_SetupLevel observer dumps each later load (loads/load_T.txt) before its tic 0."""
+    it, session, ddir = dict(wads=wads[:-1], lmp_path=wads[-1]), r['session'], r['dumps']
+    loads, sounds = S6.rows(session, 'L'), M5S.SoundStream(text=r['sound'])
+    tics = sorted(int(n[4:9]) for n in os.listdir(ddir) if n.startswith('tic_'))
+    skill, respawn, fast = min(header[1], 4), header[5], header[6]
+    previous, out = L.Dump(str(ddir / f'tic_{max(t for t in tics if t < loads[1]["tic"]):05}.txt')), []
+    previous.raw_attacker = ST.p_row(previous)['attacker']
+    for k in range(1, len(loads)):
+        T, end = loads[k]['tic'], loads[k + 1]['tic'] if k + 1 < len(loads) else 1 << 30
+        names = [f'loads/load_{T:05}.txt'] + [f'tic_{t:05}.txt' for t in tics if T <= t < end]
+        load = L.Dump(str(ddir / names[0]))
+        first = min(q for q, _ in load.serials.values())
+        kind, p, _h, _s = S6.start_from_rows(session, r['sound'], k, str(wads[0]))
+        stale = ST.StaleAttacker(kind, previous.raw_attacker)
+        dump_at = lambda j: stale.apply(ST.drop_previous(load if j == 0 else L.Dump(str(ddir / names[j])), first))
+        if kind == 'carried':
+            want = {f: ST.p_row(previous)[c] for f, c in ST.UNRECORDED.items()}
+            if {f: ST.p_row(load)[c] for f, c in ST.UNRECORDED.items()} != want: sys.exit(f'{name}: load {k} lacks the bob')
+            p.update(want)
+        mapdata = L.MapData(str(wads[0]), f'E1M{loads[k]["map"]}', ST.extra_lumps(it))
+        proj = E.Projector(mapdata, skill, loads[k]['map'], ST.Shifted(sounds, T), (kind, dict(p)), respawn, fast)
+        caps, following = [], dump_at(0)
+        for j in range(len(names)):
+            d, following = following, (dump_at(j + 1) if j + 1 < len(names) else None)
+            fields = proj.step(d, following)[0]
+            if j: caps.append((d.h['tic'], WG.digest(fields)))
+        if caps: out.append((k, T, loads[k]['map'], kind, caps))
+        previous = d
+    return out
+
+
+def levels_text(name, lv):
+    head = [f'#schema,{LEVELS_SCHEMA}',
+            '#generator,tools/reference/wire29_pause.py: the M6b runner\'s state build (strict, with m6a_state.py\'s load '
+            'dumps; its tic dumps equal the strict build\'s) and the independent DSIM45 encoder; never from Rust output',
+            '#state,as tests/reference/wire29_state.txt; one D row per session tic of each later level (paused tics included)',
+            '#columns,L,item,load,load_tic,map,kind,captures,sequence_sha256', '#columns,D,item,session_tic,state_sha256']
+    rows = []
+    for k, T, m, kind, caps in lv:
+        rows.append(f'L,{name},{k},{T},{m},{kind},{len(caps)},{sha(b"".join(bytes.fromhex(c) for _, c in caps))}')
+        rows += [f'D,{name},{t},{c}' for t, c in caps]
+    return '\n'.join(head + rows) + '\n'
 
 
 def facts(name, r):
@@ -261,6 +323,15 @@ def new_item(name, bins, work, selftest, cc='cc'):
         sys.exit(f'{name}: the rendered run differs')
     extra = hud_rows(rr['frames']) if it.get('sb') else []
     if it.get('variant'): extra += variant_row(name, bins, work, wads, sb, rr['m6b'], cc)
+    levels = {}
+    if name in LATER:
+        if 'state' not in bins: bins['state'] = state_build(work, cc)
+        rs = run(bins['state'], name, work / 'runs' / f'{name}_state', wads)
+        if not G.clean(rs) or rs['digests'] != s['digests'] or rs['session'] != s['session']:
+            sys.exit(f'{name}: the state build differs from strict')
+        lv = later_levels(name, rs, wads, data)
+        print(f'{name}: later levels ' + ', '.join(f'E1M{m} at {T} ({kind}) {len(c)} captures' for _, T, m, kind, c in lv))
+        levels = {ROOT / DIR / f'{name.lower()}_levels.txt': levels_text(name, lv).encode()}
     melt = {}
     if it.get('melt'):
         ru = run(bins['strict'], name, work / 'runs' / f'{name}_unit', wads, sb=sb, extra=['--melt-clock', 'unit'])
@@ -280,7 +351,7 @@ def new_item(name, bins, work, selftest, cc='cc'):
             ROOT / DIR / f'{name.lower()}_state.txt': state_text(name, s, caps, f, extra).encode(),
             ROOT / DIR / f'{name}.sound': G.G6.golden_sound(s['sound']).encode(),
             ROOT / DIR / f'{name}.sb{sb}.frames': G.G6.golden_frames(rr['frames']).encode(),
-            ROOT / DIR / f'{name}.sb{sb}.pause': rr['m6b'].encode()} | melt
+            ROOT / DIR / f'{name}.sb{sb}.pause': rr['m6b'].encode()} | melt | levels
 
 
 def main():
