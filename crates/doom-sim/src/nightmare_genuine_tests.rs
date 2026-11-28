@@ -453,13 +453,15 @@ fn a_fast_fireball_outside_the_map_flies_as_in_the_genuine_engine() {
 /// `tools/reference/wire29_wrap.py`; audit 1's map and demo, skill 2): at session
 /// tic 52 an overshooting slide walk (p_maputl.c:846-876) meets a far line and
 /// `P_InterceptVector`'s num narrows (m_fixed.c:48); wire 29 takes the genuine
-/// negative fractions, which are dropped, and equals the genuine engine through
-/// the last capture before the overflow and address builds stop at
-/// p_maputl.c:873 (`defined_captures`), whose `int` step sum is undefined in C.
-/// Wire 29 refuses that tic, the state kept. With the planted fault `wrapzero`
-/// the port first differs at the `V` row's capture and equals the variant there.
+/// negative fractions, which are dropped. From session tic 53 the walk's `int`
+/// step sum at p_maputl.c:873 overflows (`step_overflows`, undefined in C: the
+/// overflow and address builds stop there, `defined_captures`); the strict build
+/// is the claim and wraps, and so does wire 29 (owner ruling D44 (b),
+/// 2026-11-27): it equals the genuine engine at every capture, with no refusal.
+/// With the planted fault `wrapzero` the port first differs at the `V` row's
+/// capture and equals the variant there.
 #[test]
-fn the_overshoot_wrap_is_followed_until_the_undefined_step_sum() {
+fn the_overshoot_wrap_is_followed_through_the_wrapping_step_sum() {
     let text = std::fs::read_to_string(reference("wire29_stale/wrap_state.txt")).expect("golden");
     let rows: Vec<Vec<&str>> = text
         .lines()
@@ -477,25 +479,27 @@ fn the_overshoot_wrap_is_followed_until_the_undefined_step_sum() {
         .map(|r| r[3].to_owned())
         .collect();
     let defined: usize = row("O", "defined_captures")[2].parse().expect("defined");
-    assert_eq!((row("I", "WRAP")[2], captures.len()), ("2", 58));
+    let overflows: Vec<&str> = row("O", "step_overflows")[2].split(';').collect();
+    assert!(defined < captures.len() && overflows.iter().all(|o| o.ends_with(" 1")));
+    assert_eq!((row("I", "WRAP")[2], captures.len(), overflows.len()), ("2", 58, 7));
     let wrap = || {
         let (map, commands) = demo_at("overshoot_scripts/WRAP.lmp");
+        assert_eq!(commands.len() + 1, captures.len(), "every command played");
         let wad = "overshoot_wads/overshoot.wad";
         let mut s = level_from(wad, map, Skill::Medium, GameParameters::default()).expect("loads");
         play(&mut s, &commands, &captures)
     };
     let p = wrap();
-    assert_eq!(p.difference, None, "first differing capture");
-    let arithmetic = SimError::from(MapScaleError::Arithmetic);
-    assert_eq!(p.refusal, Some((defined - 1, arithmetic)));
+    assert_eq!((p.difference, p.refusal), (None, None));
+    assert_eq!(p.digests.len(), captures.len());
     let v = row("V", "wrapzero");
     let k: usize = v[2].parse().expect("capture");
     let f = crate::nightmare::with_fault(Fault::WrapZero, wrap);
     assert_eq!((f.difference, f.digests[k].as_str()), (Some(k), v[3]));
     eprintln!(
-        "WRAP: {} captures equal, refused at {}; wrapzero caught at {k}",
+        "WRAP: {} captures equal, {} past the sanitizer stop; wrapzero caught at {k}",
         p.digests.len(),
-        defined - 1
+        p.digests.len() - defined
     );
 }
 
