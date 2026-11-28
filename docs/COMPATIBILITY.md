@@ -3010,8 +3010,9 @@ and keeps the genuine path from there on (decision S4).
 - **Bindings** (decision S7); no configuration file is read. `vanilla` (the default): arrow keys move and turn,
   `,` and `.` strafe, right Ctrl fires, Space uses, right Alt strafes with the turn keys, right Shift runs,
   `1`-`8` choose weapons; mouse left fires, middle strafes, right moves forward; sensitivity 5. `modern`
-  (`--bindings modern`): W, A, S, D move and strafe, E uses, always run, left button fires, no vertical mouse
-  motion, no middle or right button action; the other keys as vanilla.
+  (`--bindings modern`): W, A, S, D move and strafe, E uses, P is a second Pause key (it sends exactly what Pause
+  sends; owner's ruling D40(a), 2026-11-27), always run, left button fires, no vertical mouse motion, no middle or
+  right button action; the other keys as vanilla.
 - **Pause and focus.** Esc or Pause pauses the app (below). The window library (miniquad 0.4.11) reports the
   window being minimised or losing focus through its minimise event, and `doom-play` turns that event into a pause.
   Every pause releases every held key and button through the event layer. **A key still physically held is down again
