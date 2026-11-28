@@ -175,6 +175,20 @@ fn a_session_restored_around_a_respawn_gate_and_the_fogs_continues_as_the_unbrok
     }
 }
 
+/// Finding R6: PAUSE0's first command pauses, so its first level stands paused before its tic 0
+/// (the genuine `paused` column holds for tics 0 to 20). A state saved there restores with the
+/// session's `head_owed` set, which the unbroken session never had; a first level has no load
+/// records to publish again, so each restore continues as the unbroken session: every report,
+/// frame, music call, level snapshot and the `DSES` 4 bytes 20 tics on.
+#[test]
+fn a_first_level_restored_paused_before_its_tic_0_continues_as_the_unbroken_one() {
+    let paused = genuine_paused("PAUSE0");
+    let first = paused.iter().position(|p| !p).expect("unpaused later");
+    assert_eq!(first, 21, "PAUSE0's paused tics");
+    let (at_paused, _) = windows("PAUSE0", &(1..=first + 1).collect::<Vec<_>>(), 20);
+    assert_eq!(at_paused, first - 1, "restores after a paused tic 0");
+}
+
 /// The load that clears a pause: PAUSEWI pauses in the intermission and the next level loads at
 /// tic 142 (the genuine `paused` column clears there), LOADP pauses on its load tic and runs
 /// tic 0 at 146 (`wire29_session/LOADP.session`). Every tic around each load.
