@@ -700,7 +700,7 @@ fn only_a_monster_may_spawn_in_a_closed_sector_under_wire_29() {
         )
     };
     assert!(load(3001).is_ok(), "the imp spawns on the floor, unfit");
-    let refused = load(34).err().expect("the candle is refused");
+    let refused = load(34).expect_err("the candle is refused");
     assert!(format!("{refused:?}").contains("Fit"), "{refused:?}");
 }
 
