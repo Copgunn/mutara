@@ -84,6 +84,9 @@ pub(crate) enum Fault {
     /// `clamp`: a skill byte above 4 not played as 4 (g_game.c:1379-1380), in
     /// the demo reader `crate::demo::parse_demo_episode1_v4`.
     Clamp,
+    /// `wrapzero` (`tools/reference/wire29_wrap.py`): the slide intercept that
+    /// wire 29 admits is 0, as for a parallel line (p_maputl.c:242-243).
+    WrapZero,
 }
 #[cfg(test)]
 thread_local! {

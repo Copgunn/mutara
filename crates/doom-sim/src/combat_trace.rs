@@ -287,6 +287,8 @@ fn collect_limited(
     // `add`, M3h6 note §3).
     let mut seen = crate::line_work::SeenLines::for_lines(world.lines.len());
     let [width, height] = world.map().blockmap().dimensions().map(i32::from);
+    let strict = world.checked_arithmetic && world.parameters.is_some();
+    let step = |at, by| crate::movement::walk_step(at, by, strict).ok_or(CombatError::Arithmetic);
     let mut complete = false;
     for _ in 0..64 {
         out.cells.push(cell);
@@ -373,10 +375,10 @@ fn collect_limited(
             break;
         }
         if crossings[0].bits() >> 16 == cell[1] {
-            crossings[0] = crossings[0] + increments[0];
+            crossings[0] = step(crossings[0], increments[0])?;
             cell[0] += steps[0];
         } else if crossings[1].bits() >> 16 == cell[0] {
-            crossings[1] = crossings[1] + increments[1];
+            crossings[1] = step(crossings[1], increments[1])?;
             cell[1] += steps[1];
         }
     }
