@@ -984,4 +984,4 @@ O,player_health_end,100
 O,runner_end,AttackerRemoved
 O,scrub00,exit 0, dumps 962, first differing dump None
 O,scrubff,exit -11, dumps 962, first differing dump None
-V,sweep,BARRELF,961,6e121afb143a7d9473ed8ec076f8dc6c4daf7d70e3674a6c5d0c590f05b611c0
+V,sweep,BARRELF,961,6269859fa3d6c3e726e430775f5e0b808e682372dd9f2d168725dc2a323feac6

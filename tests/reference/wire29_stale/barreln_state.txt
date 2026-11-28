@@ -1166,4 +1166,4 @@ O,first_read,-
 O,first_freed_values,-
 O,player_health_end,76
 O,runner_end,marker
-V,sweep,BARRELN,961,b176abcc0356e70714bc535e35596aa0db1cc5c70fbc293687999e1514ce15c6
+V,sweep,BARRELN,961,77b39e851c1943a74e7b1c60fd8c668280063de39a8ba83609b0fa410c819883

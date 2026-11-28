@@ -375,13 +375,13 @@ def scrub(fill):
 
 
 # The planted fault `sweep` (a strict build with one exact-once change, BARREL*/MISS*'s V rows): P_NightmareRespawn
-# clears every mobj `target` and player `attacker` naming the corpse before it removes it, so nothing is left pointing
-# at the block (one non-vanilla option for reading on past a freed read).
+# clears every mobj `target` (with its `threshold`, as if never retargeted) and player `attacker` naming the corpse before
+# it removes it, so nothing is left pointing at the block (one non-vanilla option for reading on past a freed read).
 SWEEP = {'p_mobj.c': [('    // remove the old monster,\n    P_RemoveMobj (mobj);\n',
                        '    // remove the old monster,\n    { thinker_t* t; int i;\n'
                        '      for (t = thinkercap.next; t != &thinkercap; t = t->next)\n'
                        '        if (t->function.acp1 == (actionf_p1) P_MobjThinker && ((mobj_t*) t)->target == mobj)\n'
-                       '          ((mobj_t*) t)->target = NULL;\n'
+                       '          ((mobj_t*) t)->target = NULL, ((mobj_t*) t)->threshold = 0;\n'
                        '      for (i = 0; i < MAXPLAYERS; i++) if (players[i].attacker == mobj) players[i].attacker = NULL; }\n'
                        '    P_RemoveMobj (mobj);\n')]}
 # BARRELP and BARRELF end where the M5b runner's declared witness AttackerRemoved stops (m5b_build.py, decision S17): the

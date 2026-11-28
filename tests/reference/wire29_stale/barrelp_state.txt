@@ -982,4 +982,4 @@ O,first_read,source 960
 O,first_freed_values,-
 O,player_health_end,83
 O,runner_end,AttackerRemoved
-V,sweep,BARRELP,961,bef06a04b1e529e36b8f4bc78a64cdd895bb3bbca3299ce6913a870ed32a92a5
+V,sweep,BARRELP,961,8c3f5ce8ef8cdcbc53ede01c5ac43f355ba21d1d8526a6cbdecb6adf7e0c4a63
