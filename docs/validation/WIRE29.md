@@ -10,9 +10,8 @@ and the quirk rows in the [register](../QUIRKS.md). Exact review commits and CI 
 digest prefixes and map names from the commercial IWAD appear here; nothing is said of any map's things or geometry.
 
 **Tic convention (as in [WIRE27](WIRE27.md)).** A session tic is the 0-based index of a tic; a refusal at session tic N keeps the
-state after N tics. **Everything labelled Rust-only is Rust-only:** no genuine engine ran it. Figures marked
-`REAL-MAP-FIGURES-PENDING` come from the real-map replays, which were being rerun when this record was written; they are filled in
-afterwards and nothing here stands in for them.
+state after N tics. **Everything labelled Rust-only is Rust-only:** no genuine engine ran it. Real-map figures
+are from the final replays of 2026-11-27 and 11-28 ([§8](#8-real-maps-and-the-session)), run with binaries built from `1861257f`.
 
 ## 1. What wire 29 is, in one paragraph
 
@@ -139,9 +138,10 @@ paused reborn load tic (`REBORNP`). What stays unrun is in [§14](#14-limits-and
 
 ## 5. The session, frames, sound and mixer
 
-The session is compared with the genuine session streams by `wire29_session.rs` (its list now has 24 items; the totals in this paragraph were counted when it had 22, the 19 plus `DEADSPEC`, `LOADP`, `TURBOP`, and are not recounted: read, not run;
-12,334 session tics; every G column, C, I, J and F row equal; 9,974 first-level captures equal; paused tics `PAUSE` 214, `PAUSE0` 21,
-`PAUSEWI` 9, `PAUSEFIN` 111, `DEADSPEC` 10, `LOADP` 13, `TURBOP` 214; the intermission's kill percentages 200, 150 and 100 for `RESP4`,
+The session is compared with the genuine session streams by `wire29_session.rs` (24 items, the 19 plus `DEADSPEC`, `LOADP`, `TURBOP`, `REBORNP`, `DEADEXIT`; recounted on 2026-11-28 at `cc4569e4` by running
+`cargo test -p doom-game --test wire29_session wire_29_session_equals -- --nocapture`, exit 0: 12,782 session tics, 10,294 captures equal
+(the 9,974 of the first 22 items plus `REBORNP` 187 and `DEADEXIT` 133); every G column, C, I, J and F row equal; paused tics `PAUSE` 214, `PAUSE0` 21,
+`PAUSEWI` 9, `PAUSEFIN` 111, `DEADSPEC` 10, `LOADP` 13, `TURBOP` 214, `REBORNP` 4, `DEADEXIT` 4; the intermission's kill percentages 200, 150 and 100 for `RESP4`,
 `RESP3R` and `RESP3`). The frames, the pause picture, the music calls and the mixer by `wire29_frames.rs`: 14 runs, 11,460 tics; level
 frames 5,041 (whole digest, rebuilt F row, face-zeroed digest, draws, newly mapped lines, status), frames outside a level 3,708, paused
 frames 926 (B rows), music calls 42, sound rows 15,442, mixer rows 1,298 (7,057 buffers), all equal. `REBORNP` and its 4 paused frames
@@ -170,7 +170,7 @@ removes the stripping of tic 0's load records fails `LOADP` at tic 146.
 **Later levels.** `wire29_pause.py` also dumps each later load of its items and projects the later levels (`tests/reference/wire29_session/<item>_levels.txt`):
 `DEADSPEC` 74 captures, `LOADP` 28, `REBORNP` 74, `MELTP` 36, `DEADEXIT` 40, 252 in all, one per session tic of the later level (paused tics
 included); `later_levels_equal_the_genuine_dsim45_captures` compares each with the port (252 equal, each read by the `DSIM` 45 reader).
-`PAUSEWI`'s later level is not projected (its M6b run is not in this tool: not done). See finding R5 in [§17](#17-the-independent-read-eight-findings).
+`PAUSEWI`'s later level is not projected: its golden is the frozen phase 1 file, whose runner wrote no dump at the load of the second level, and its 18 dumps there are not consecutive tics, so there is no starting state to project from. `LOADP` (`PAUSEWI`'s pause commands plus one more) covers the same path with 28 later-level captures; for `PAUSEWI` itself the later level is read, not run. See finding R5 in [§17](#17-the-independent-read-eight-findings).
 
 **Fixes the new evidence found** (each: C evidence, fix, test):
 
@@ -201,8 +201,8 @@ an authoring run with a 2,600-tic tail: 2,058 freed reads, 0 reuse).
 **What wire 29 does (D13, D14).** The first read of the retired corpse is a refuse-the-tic witness, `SimError::FreedRead`, state kept
 (`STALE`: session tic 1410; `STALE2`: 3226). The read while the corpse is pending is reproduced. A live monster's removed target is left to
 `A_Chase` (D14); the chase guard that used to `unwrap()` the target now refuses. Two more readers, found by the independent read, are in
-[§17](#17-the-independent-read-eight-findings): a barrel's explosion (p_inter.c:806-809) and a missile's contact (p_map.c:298-301). Whether the real-map skill 4 runs met a `FreedRead`, a `MapScale` or a stale-target refusal:
-REAL-MAP-FIGURES-PENDING ([§8](#8-real-maps-and-the-session)). Quirk rows Q-p_mobj-408 and Q-p_inter-680.
+[§17](#17-the-independent-read-eight-findings): a barrel's explosion (p_inter.c:806-809) and a missile's contact (p_map.c:298-301). None of the real-map runs met a `FreedRead`, a `MapScale` or a stale-target refusal (0 refusals in all
+372 final runs, [§8](#8-real-maps-and-the-session)); the refusal is shown on synthetic items only. Quirk rows Q-p_mobj-408 and Q-p_inter-680.
 
 ## 7. Finding F1: a fast fireball through a map's outer wall
 
@@ -233,22 +233,50 @@ The pause kind inserts five pause pairs per run (a pair `0x81` ... `0x81`, `0x81
 paused run's captures on its unpaused level tics equal the unpaused run's one for one (the two fields an inserted byte changes are left out;
 runs with a forward above 50 also leave out the turbo message). `0x83` is not inserted: its use bit would reborn a dead player.
 
-**Results:** REAL-MAP-FIGURES-PENDING (the 305 simulation-level replays: captures equal, refusals, genuine respawns; the pause and skill 4 runs
-at the session level: tics, captures, paused tics, respawns, shifted-comparison captures). Earlier batches
-were stopped for corrections of the tools (an encoder deficiency on pending mobjs, a shifted-comparison digest), never for speed.
+**Results (the final replays, 2026-11-27 23:55 to 2026-11-28 08:38 PST, 8 h 42 min wall-clock in all).** Binaries built from `1861257f`
+(`wire29_real` sha256 prefix `bbfcc6ba485ce09f`, `wire29_session_real` `65b06df5e5d5ed2b`); no non-test source changed after that commit (run:
+`git diff --stat` to `cc4569e4` shows only `nightmare_tests.rs`, `crates/doom-game/tests` and documents). Up to five replay jobs ran at once, on a machine that was
+not idle (mutation runs beside them), so this is **not a timing**. Earlier batches were stopped for corrections of the tools (an encoder deficiency on pending mobjs, a
+shifted-comparison digest), never for speed.
+
+**Simulation level, 305 runs (5 kinds x 61 recordings), exit 0, 0 failures:**
+
+| Kind | Runs | Captures equal | Genuine respawns | Refusals |
+| --- | ---: | ---: | --- | ---: |
+| `skill4` | 61 | 196,833 | 43 in 20 runs | 0 |
+| `respawn` | 61 | 196,833 | 77 in 24 runs | 0 |
+| `fast` | 61 | 196,833 | 0 | 0 |
+| `both` | 61 | 196,833 | 37 in 16 runs | 0 |
+| `own` (the unchanged control replays) | 61 | 196,833 | 0 | 0 |
+
+The four changed kinds: 244 runs, 4 x 196,833 = 787,332 captures; with `own`, 305 runs and 984,165. Self-tests pass: a changed Rust command at session tic 100
+and an extra genuine `P_Random` draw at tic 200 are both detected.
+
+**Pause replays (own heading; in neither README figure, ruled by the owner on 2026-11-28).** Kind `pause`, session level, 61 runs, exit 0: 209,900 session tics and
+209,900 captures equal, **13,067 paused tics**, 0 refusals; the 196,833 unpaused captures equal the unpaused originals' shifted. The three self-tests pass. These runs are
+not added to the compared-tics sums below.
+
+**The owner's six hand recordings** ([§9](#9-the-owners-hand-test-2026-11-27)), rerun with the same binaries at the session level, exit 0: 6 runs, 11,481 session tics,
+10,805 captures equal, 836 paused tics, 14 genuine respawns in 2 runs, 0 refusals; each recording's counts equal §9's table.
 
 **Replays that end at the freed-read refusal** (a respawning session can stop at a read of freed memory, [§17](#17-the-independent-read-eight-findings)):
-of the 305 final replays, REAL-MAP-FIGURES-PENDING end at it; of the six hand recordings ([§9](#9-the-owners-hand-test-2026-11-27)),
-REAL-MAP-FIGURES-PENDING. A replay that ends there ends complete up to that tic and is counted as a refusal, not as a failure.
+**0 of the 305 final replays, 0 of the 61 pause replays and 0 of the six hand recordings.** No real-map run reached it; it is shown on synthetic items only (`STALE`,
+`STALE2`, `BARRELF`, `MISSF`). Had a replay ended there it would end complete up to that tic and count as a refusal, not a failure.
 
-**The two sums behind the README's evidence sentence** (counted as the owner ruled on 2026-11-27; both are filled in afterwards):
+**The two sums behind the README's evidence figures** (by the owner's rule of 2026-11-27: a replay of an existing recording on another skill, or with the fast or respawn
+setting or both, counts toward the all-replays figure; the unchanged control replays do not, being already in the totals; the six hand recordings count toward the
+distinct-recordings figure). The old sums are figures 1 and 2 of [M6A section 14.2](M6A.md#142-the-readmes-evidence-figures-summed-from-the-records) (figure 1 distinct
+recordings, figure 2 the same recordings replayed another way, their sum the all-replays figure); this PR adds to them:
 
-| Sum | Counts | Does not count | Figure |
-| --- | --- | --- | --- |
-| Replays equal to the genuine engine | every replay of an existing recording on another skill, with `--fast`, with `--respawn` or both (kinds `skill4`, `respawn`, `fast`, `both`; where the pause kind belongs is not in the ruling and is left to the final count) | the unchanged control replays (kind `own`) | REAL-MAP-FIGURES-PENDING |
-| Distinct recordings | the committed real-map recordings replayed, and the six hand recordings of [§9](#9-the-owners-hand-test-2026-11-27) | a recording counted twice | REAL-MAP-FIGURES-PENDING |
+| Sum | Old | Added | New |
+| --- | ---: | --- | ---: |
+| Distinct recordings (figure 1) | 544,138 tics, 155 recordings | the six hand recordings: 10,805 compared captures | **554,943 tics, 161 recordings** |
+| Figure 2 (the same recordings replayed another way) | 419,690 | the four changed kinds: 787,332 captures | 1,207,022 |
+| All replays (figure 1 + figure 2) | 963,828 | 787,332 + 10,805 = 798,137 | **1,761,965** |
 
-The README sentence, with the figures to fill in: "N replays of M distinct recordings equal the original's engine tic for tic (a replay of an existing recording on another skill or option counts, an unchanged one does not)", N = REAL-MAP-FIGURES-PENDING, M = REAL-MAP-FIGURES-PENDING.
+**Not counted:** the `own` replays (already in the totals), the 61 pause replays and their 209,900 tics, and the 61 recordings' retail and registered duplicates as in M6A.
+**Where the rule left a choice, the smaller figure was taken:** the hand recordings count as their 10,805 compared captures, not their 11,481 session tics (the
+difference, 676 tics, would give 555,619 and 1,762,641; the README's rounded figures are the same either way). The README says "more than 550,000" and "more than 1,700,000".
 
 ## 9. The owner's hand test, 2026-11-27
 
@@ -303,26 +331,39 @@ many mutated inputs the readers accept. The fuzz workspace's `cargo +nightly che
 
 ## 12. Mutation testing
 
-**mutation: pending.** The `doom-sim` (401 mutants) and `doom-game` (207) runs were unfinished when this record was written. The numbers
-below are the finished crates only; the survivors of the other two and their answers are filled in afterwards. Method: cargo-mutants 27.1.0
-with cargo-nextest 0.9.151 on `git diff 682de22c HEAD -- crates/`, a worktree on the Linux disk, D41 and D42.
+**Method.** cargo-mutants 27.1.0 with cargo-nextest 0.9.151 mutated `git diff 682de22c HEAD -- crates/` in a worktree on the Linux disk (D41, D42), each crate's mutants
+judged first by that crate's own tests. A mutant they missed was then run against `doom-game`'s tests as a second judge (for `doom-sim`, `doom-render` and `doom-sound`: tier A the
+`wire29*` test binaries, tier B all of them), and a survivor of that got a new test where a test could be written. Final runs 2026-11-28 at `0472c36c` (`doom-sim`) and `cc4569e4` (`doom-game`); `doom-render`, `doom-sound` and `doom-play` have their step 9 runs and the increments listed.
 
-| Crate | Found | Phase 1 caught | Missed | Timeout | Unviable | Phase 2 caught of missed and timeout | Killed by new tests | Survivors |
+| Crate (diff) | Found | Own tests caught | Missed | Timeout | Unviable | Second judge caught | Killed by new tests | Survivors |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: |
-| `doom-sound` | 50 | 6 | 31 | 0 | 13 | 23 of 31 | 7 of 8 | 1 |
-| `doom-render` | 135 | 30 | 67 | 10 | 28 | 62 of 77 | 12 of 15 | 3 |
-| `doom-play` | 3 | 2 | 0 | 0 | 1 | - | - | 0 |
-| `doom-sim` | 401 | pending | | | | | | |
-| `doom-game` | 207 | pending | | | | | | |
+| `doom-sim`, to `f570dc36` | 401 | 355 | 25 | 0 | 21 | tier A: 13 of the 24 selected for the first 21 misses, 0 of the 5 for the last 4 | 15 of 15 | 1 |
+| `doom-sim`, `f570dc36` to head | 60 | 48 | 7 | 0 | 5 | tier A: 0 (the `nightmare.rs` pair) | 6 of 7 | 1 |
+| `doom-render`, step 9 | 135 | 30 | 67 | 10 | 28 | 62 of 77 | 12 of 15 | 2 at head (one now caught by the R2 tests) |
+| `doom-render`, `f570dc36` to head | 11 | 1 | 8 | 0 | 2 | tier A: 7 of the 8 (and one extra); `pause.rs:71:13` survived tier B | 1 | (the same survivor) |
+| `doom-sound`, step 9 | 50 | 6 | 31 | 0 | 13 | 23 of 31 | 7 of 8 | 1 |
+| `doom-play`, step 9 and `keys.rs` increment | 3 + 4 | 2 + 4 | 0 | 0 | 1 | - | - | 0 |
+| `doom-game`, at head | 209 | 161 | 8 | 0 | 40 | - | 7 of 8 | 1 |
 
-**Survivors so far, each answered.** (1) `chain_pause.rs` `<` to `<=` in `ChainSoundStateV4::decode`: equivalent (both return
-`Truncated` at 67, 75 and 76 bytes; scratch probe). (2) `d_display/session.rs:472` `&&` to `||`: killed afterwards by `REBORNP` (a paused
-reborn load tic, see §4). (3) `pause.rs:68` delete `level_paused: 0` in `Pause::fresh`: unreachable (`fresh` runs only at tic 0, where
-the count is 0). (4) `pause.rs:246` `-` to `+` in `check_parts`: equivalent in every state a session saves. New tests that kill mutants:
-`dsnd4_reader.rs` (2), `chain_pause_tests.rs` (2), the sound-session test in `wire29_restore.rs`, `wire29_display.rs` (5); their expected
-values are the genuine `paused` column, `m6b_genuine.txt`'s R rows and written module rules, never Rust output.
+**`doom-game`: 8 survivors of its own tests, 7 killed, 1 equivalent by reading.** All 8 are in `crates/doom-game/src/app/mod.rs` (`GameData::recorder`, `original_pause`, `parameters`,
+`App::preset`, `App::key` twice, and `App::run_tic` twice). `crates/doom-game/tests/wire29_app_mutants.rs` (new) was run against exactly these 8 by cargo-mutants: 7 caught, 1 missed (exit 2). Its expectations are the
+Pause key's command byte `0x81` with the movement kept (g_game.c:426-430, 561-565) and the version 4 header (g_game.c:1556, 1560-1561), as in `doom-play`'s test; the first run of the Pause test
+failed because Esc's stop releases held keys (the test presses the up arrow again), fixed before the commit.
 
-<!-- MUTATION-PENDING: doom-sim and doom-game results, survivors and kill tests are added here -->
+**Every survivor, with its reason (run = a run showed it; read = argued from the source, not run):**
+
+| # | Mutant | Reason | Basis |
+| ---: | --- | --- | --- |
+| 1 | `doom-sim` `lifecycle.rs:1816` guard `respawn_monsters(..)` to `true` in `tick_at` | equivalent: `corpse_think`'s first statement already returns when `!respawn_monsters(..)` | read; phase 1 and tier A missed it (run); tier B not run |
+| 2 | `doom-sim` `nightmare.rs:308:23` and its sibling `301:25`, `==` to `!=` in `sweep` | unreachable in production: `sweep` runs only when a test plants `Fault::Sweep`, and in the self-test items every target names the corpse | read; tier A missed (run); a two-target scenario was not built |
+| 3 | `doom-render` `pause.rs:71:13`, delete `level_paused: 0` in `Pause::fresh` | unreachable: `fresh` runs only at tic 0, where the count is 0 | read; tier B with all of `doom-game` missed (run) |
+| 4 | `doom-render` `pause.rs` `check_parts`, `-` to `+` | equivalent in every state a session saves | read; not rerun |
+| 5 | `doom-sound` `chain_pause.rs` decode, `<` to `<=` | equivalent: both return `Truncated` at 67, 75 and 76 bytes | run (scratch probe) |
+| 6 | `doom-game` `app/mod.rs:581:42`, `&&` to `\|\|` in `GameData::recorder` | equivalent: it only moves a non-wire-28 session from `Recorder::new` to `new_v3`, whose bytes differ only for skills 0 and 1, which such sessions refuse at load (equal for skills 2 and 3, `demo.rs:356-358`); `admits` reads only version 4 | read; the mutant missed (run) |
+
+New tests that kill mutants: `dsnd4_reader.rs` (2), `chain_pause_tests.rs` (2), the sound-session test in `wire29_restore.rs`, `wire29_display.rs` (5, plus one for the two planted faults),
+`nightmare_tests.rs` (13, all below the public API), `wire29_app_mutants.rs`; their expected values are the genuine `paused` column, `m6b_genuine.txt`'s R rows and written module
+rules, never Rust output. **Not run:** tier B for survivors 1 and 2, rustdoc, `doom-render`/`doom-sound`/`doom-play` tests at the final head.
 
 ## 13. The frozen wires, and the instruction counts
 
@@ -420,8 +461,8 @@ so the paused frame is drawn from `viewz` 0. 187 captures, 4 paused tics, equal.
 ## 17. The independent read: eight findings
 
 A fresh reviewer read the diff at `c5c56685` against the C and ran nothing. The owner ruled that no finding counts as confirmed or dismissed until a run shows it; the
-order was R2, R1 with R3, R4 with R5, R7, and R6 a note unless a run shows an effect. **Five findings changed code or tests (R1, R2, R3, R4, R5); R6 shows no effect, R7 changed a
-comment, R8 is a known placeholder.** The reviewer also checked correct: the corpse countdown and respawn order and random numbers, the Nightmare sites, the fast table (N4), the demo header and
+order was R2, R1 with R3, R4 with R5, R7, and R6 a note unless a run shows an effect. **Five findings changed code or tests (R1, R2, R3, R4, R5); R6 added a test only (the run showed no effect), R7 changed a
+comment, R8 was the pending markers, now filled.** The reviewer also checked correct: the corpse countdown and respawn order and random numbers, the Nightmare sites, the fast table (N4), the demo header and
 commands, the pause order in `G_Ticker`, the pause picture's place, wires 1 to 28 untouched, the new readers, the Python encoders' independence and that the planted faults can fail.
 The fold count of findings into the diff: not in the fact sheet, not stated here.
 
@@ -431,10 +472,10 @@ The fold count of findings into the diff: not in the fact sheet, not stated here
 | R1 (major, disclosure) | A barrel whose first wounder respawned is refused up front, though the original reads it only in `P_DamageMobj` of a victim in range (p_inter.c:806-809); COMPATIBILITY called this unreachable | **Confirmed by a run** (before the fix, `BARRELF` was refused at 961 and `BARRELN` at 961, where the genuine engine read freed memory at 961 / read nothing) | The up-front refusal stays on wires 21 to 28 only; wire 29 reproduces a pending read, plays on past a barrel with nothing in range and refuses the read of the freed block with `FreedRead`. Items `BARRELP`, `BARRELF`, `BARRELN` |
 | R3 (minor) | A flying missile whose owner's corpse respawned is refused at the preflight, before any read (p_map.c:299-305, 324) | **Confirmed by a run** (before the fix: `MISS0` refused at 769 where the genuine engine never reads; `MISSF` refused at 769 where it reads at 804) | The owner is read lazily at contact; items `MISS0`, `MISSP`, `MISSF`. Wires 1 to 28 keep the preflight refusal |
 | R4 (note) | The `DSIM` 45 reader accepts kill credit above the total whatever the skill | **Confirmed by reading and a test run** (every capture admitted it) | Credit above the total is accepted only with skill 4 or the `-respawn` option set; `dsim45_kills_pass_the_total_only_with_respawning` on real captures of an M6b map (accepts at skill 4, and with `-respawn` at skill 3 with and without `-fast`; refuses at skill 3 without it, and at skill 2 with `-fast`) |
-| R5 (evidence gap) | The session test compared `DSIM` 45 digests only on the first level; paused load tics are on later levels | **Confirmed by reading** the test; the new comparison then **caught a gap**: `LOADP`'s paused load tic differed in `events.sounds` only (the projection skipped the S row of the load tic) | An encoder rule (D51) and later-level goldens, 252 captures equal ([§5](#5-the-session-frames-sound-and-mixer)); `REBORNP` and `DEADEXIT` joined the session list. `PAUSEWI`'s later level is not projected |
+| R5 (evidence gap) | The session test compared `DSIM` 45 digests only on the first level; paused load tics are on later levels | **Confirmed by reading** the test; the new comparison then **caught a gap**: `LOADP`'s paused load tic differed in `events.sounds` only (the projection skipped the S row of the load tic) | An encoder rule (D51) and later-level goldens, 252 captures equal ([§5](#5-the-session-frames-sound-and-mixer)); `REBORNP` and `DEADEXIT` joined the session list. `PAUSEWI`'s later level is not projected (no starting state: [§5](#5-the-session-frames-sound-and-mixer); `LOADP` covers the path) |
 | R6 (note) | `head_owed` stays set after a restore at session tic 0 while paused | **Run, no effect:** `PAUSE0` restored after each paused tic 1 to 20 and at 21 and 22, 20 tics each beside the unbroken session: reports, frames, music calls, snapshots and the `DSES` 4 bytes equal | Nothing changed in code; a test `a_first_level_restored_paused_before_its_tic_0_continues_as_the_unbroken_one` |
 | R7 (note) | The `escaped_missile` comment against the 16,384 cap | Read | Comment only: the bound subtracts the smaller of the sight margin and 16,384, and the `int` argument covers margins up to 16,384 |
-| R8 (note) | Placeholders pending | Known | The `REAL-MAP-FIGURES-PENDING` and `MUTATION-PENDING` markers stay until the runs finish |
+| R8 (note) | Placeholders pending | Known | The two placeholders are filled in by the final documents pass, after the replays and the mutation runs finished ([§8](#8-real-maps-and-the-session), [§12](#12-mutation-testing)) |
 
 **What R1 and R3 changed in what the port promises.** The genuine engine reads whatever the freed block holds: `Z_Free` writes only the block's header, so the corpse's bytes stay until a later
 `Z_Malloc` reuses the block (0 reuses in all eight freed-read runs). The outcome therefore depends on memory outside the defined state, which is why the port refuses. Scrub builds that fill the
@@ -446,7 +487,7 @@ missiles; the port with the fault equals each variant's digest where it is not r
 **What `doom-play` shows and saves** (run: test `wire29_tests::a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved`, `MISSF` and `BARRELF` played through the app by vanilla keys): the session ends as refused at tic 804 or 961, the end screen's text is "simulation: FreedRead. The original would read freed memory here, through a pointer to a
 monster's corpse removed when the monster respawned. What it reads depends on the memory allocator, so the session stops here instead of guessing.", the session summary contains it, and the demo saves, parses as version 4 and holds every command before the refused tic (804 and 961 commands). Without the new text the test fails ("simulation: FreedRead").
 
-How many of the 305 final replays and the six hand recordings end at this refusal: REAL-MAP-FIGURES-PENDING ([§8](#8-real-maps-and-the-session)).
+None of the 305 final replays, the 61 pause replays or the six hand recordings ended at this refusal (run, [§8](#8-real-maps-and-the-session)); no real-map run reached it.
 
 ## 18. Decisions D50 to D53
 

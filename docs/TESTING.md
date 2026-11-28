@@ -3573,7 +3573,7 @@ python3 tools/local/wire29_real.py --iwad IWAD --work DIR --kind sessions --reco
   `wire29_restore` (`a_first_level_restored_paused_before_its_tic_0_continues_as_the_unbroken_one`), and in `doom-play` `wire29_tests`.
   The pre-push rule: run every `wire29_*.py --check`, including `wire29_mixer.py`, before a push; a new session item needs its mixer golden (the gap `REBORNP` showed).
 - **Mutation testing of wire 29** follows the method below with the two judges of the record's [section 12](validation/WIRE29.md#12-mutation-testing);
-  its `doom-sim` and `doom-game` results are pending there.
+  its results and survivors are recorded there.
 - **Fuzz campaigns** used `cargo +nightly fuzz run` with the default AddressSanitizer build, leak detection on, 601 seconds each, and a
   leak plant that must fail; options and counts are in the record's [section 11](validation/WIRE29.md#11-fuzzing-and-sanitizers).
 

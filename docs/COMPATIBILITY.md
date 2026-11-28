@@ -4051,8 +4051,8 @@ skipped the cap (p_inter.c:836-842) in `strike_player`, where the genuine engine
   **A read while the corpse is removed but not yet freed** (the rest of the respawn tic, until the corpse's turn in the next tic's thinker pass) **is reproduced, and a pointer that is never read changes nothing.**
   The missile preflight changed with it: a flying missile whose shooter respawned is no longer refused at the next tic's preflight (`ProjectileError::Owner`); it waits for the contact, as the original reads the shooter only there. Wires 1 to 28 keep that refusal (unreachable there).
   **`doom-play` shows** the end screen "simulation: FreedRead. The original would read freed memory here, through a pointer to a monster's corpse removed when the monster respawned. What it reads depends on the memory allocator, so the
-  session stops here instead of guessing." and saves the demo complete up to that tic (test `wire29_tests::a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved`, run). How many real-map replays and hand recordings end here:
-  REAL-MAP-FIGURES-PENDING ([record §8](validation/WIRE29.md#8-real-maps-and-the-session)). A labelled non-vanilla option that plays on past it is decision D50, **not in this PR**
+  session stops here instead of guessing." and saves the demo complete up to that tic (test `wire29_tests::a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved`, run). No real-map replay and no hand recording ended here (run: the counts are in
+  [record §8](validation/WIRE29.md#8-real-maps-and-the-session)); it is shown on synthetic items only. A labelled non-vanilla option that plays on past it is decision D50, **not in this PR**
   ([record §18](validation/WIRE29.md#18-decisions-d50-to-d53)). Quirk rows [Q-p_mobj-408](quirks/p_mobj.c.md), Q-p_user-200.
   (2) **A missing or malformed M_PAUSE** refuses the first paused tic. (3) **A missile farther from the map's origin than 32,767 units less margins** (D17) is refused.
   (4) **The pause picture below screen size 10** and sizes below 10 are not drawn: the session admits 10 and 11 only (the picture's place is
@@ -4066,10 +4066,10 @@ skipped the cap (p_inter.c:836-842) in `strike_player`, where the genuine engine
   [session formats](STATE_FORMAT.md#session-formats-of-wire-29-dses-4-ddsp-5-dsnd-4-demo-version-4). The session configuration is
   `Configuration::FinaleAndMeltWire29`. A `DSES` 4 state can be saved while paused and restored.
 - **Evidence and its limits:** the 19 synthetic items and the later ones (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `WRAP`, `DEADSPEC`, `LOADP`, `TURBOP`,
-  `REBORNP`, `STEPREAD`, `MELTP`, `DEADEXIT`, `BARRELP`, `BARRELF`, `BARRELN`, `MISS0`, `MISSP`, `MISSF`) equal the genuine engine at every capture, frame, sound row and mixer buffer where the record says so (`STEPREAD`: an overflowed step sum read again is followed, and no run or reading can tell a wrapping sum from a saturating one, [record §15](validation/WIRE29.md#15-the-walks-step-sums-wrap-and-stepread)); real maps: REAL-MAP-FIGURES-PENDING; the owner's
-  hand test (six recordings, 836 paused tics, 14 genuine respawns) equals the genuine engine at both levels, on the state, not on frames or sound.
+  `REBORNP`, `STEPREAD`, `MELTP`, `DEADEXIT`, `BARRELP`, `BARRELF`, `BARRELN`, `MISS0`, `MISSP`, `MISSF`) equal the genuine engine at every capture, frame, sound row and mixer buffer where the record says so (`STEPREAD`: an overflowed step sum read again is followed, and no run or reading can tell a wrapping sum from a saturating one, [record §15](validation/WIRE29.md#15-the-walks-step-sums-wrap-and-stepread)); real maps: the 61 recordings replayed on skill 4, with the options and unchanged, with pause commands inserted, and the owner's
+  hand test (six recordings) equal the genuine engine at every capture and, for the pause replays and the hand test, at every session tic's G columns, with no refusal; frames and sound are not compared on real maps (counts and limits in [record §8](validation/WIRE29.md#8-real-maps-and-the-session)).
   Not covered: the finale on a real map with a pause, Cacodemons, `MT_SPAWNCEILING`, a reused zone block, the original's music while paused, other table histories.
-  Mutation testing of the `doom-sim` and `doom-game` diff is pending in the record. An independent read of the diff was made once and its eight findings are answered in [record §17](validation/WIRE29.md#17-the-independent-read-eight-findings).
+  Mutation testing of the diff is done and its six survivors are each answered in [record §12](validation/WIRE29.md#12-mutation-testing). An independent read of the diff was made once and its eight findings are answered in [record §17](validation/WIRE29.md#17-the-independent-read-eight-findings).
 
 ## Known gap: THING loading stops at the first Doom II type outside commercial mode
 

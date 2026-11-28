@@ -139,8 +139,9 @@ playing play out, and Pause again goes on; both presses are recorded in the demo
 --bindings modern only, P is a second Pause key, the same in every way. Esc
 pauses the window instead (then Esc resumes, R restarts, Q quits; Pause does nothing
 there), outside the demo, and works during the original's pause too; on a refusal
-screen R restarts and Q or Esc quits. During a screen melt every key and mouse button is
-kept and acts when the melt ends (a pause then too); closing the window always quits. R starts a new game at the start map, as a new
+screen R restarts and Q or Esc quits. During a screen melt every key and mouse button is kept
+and acts when the melt ends: Pause's command is then the first tic's, so that tic is paused, as
+in the original, and Esc pauses the window before it; closing the window always quits. R starts a new game at the start map, as a new
 session with its own demo. End mutes and unmutes the sound (the player's own key, never
 seen by the game); pausing also silences it. When the window library reports that the window
 was minimised or lost focus, the game pauses and every held key is released. Under WSLg the

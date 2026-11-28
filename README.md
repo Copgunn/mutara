@@ -48,10 +48,11 @@ matches, which is what speedrun and tool-assisted (TAS) research need.
   ([what is admitted](docs/COMPATIBILITY.md#policies)).
 - **Real maps.** All nine Episode 1 maps and the original's own `DEMO1`: every scripted run stays in sync with the
   original C code, tic for tic, and so do the 80 hand-played sessions checked so far (over 280,000 tics).
-  Two honest figures. From distinct recordings, more than 540,000 real-map tics have been compared with the original,
-  every one equal. Counting also the same recordings replayed on other skills (where different things spawn and the game
-  plays out differently, but which no one played), more than 960,000 tics in all, every one equal
-  ([how each is summed, and what it leaves out](docs/validation/M6A.md#142-the-readmes-evidence-figures-summed-from-the-records);
+  Two honest figures. From distinct recordings, more than 550,000 real-map tics have been compared with the original, every one
+  equal. Counting also the same recordings replayed on other skills or with the fast or respawn setting or both (where the game plays
+  out differently, but which no one played), more than 1,700,000 tics in all, every one equal. Pause commands inserted into the
+  existing recordings changed nothing in play and are in neither figure
+  ([how each is summed](docs/validation/M6A.md#142-the-readmes-evidence-figures-summed-from-the-records), [wire 29's additions](docs/validation/WIRE29.md#8-real-maps-and-the-session);
   [scripted runs](docs/validation/M4B.md#real-maps-and-demo1); by hand: [M5c](docs/validation/M5C.md#hand-played-checks),
   [M5d](docs/validation/M5D.md#hand-played-checks), [M6a](docs/validation/M6A.md#5-after-the-hand-test-gate-2026-11-22-evening)).
 - **Picture.** Renderer, status bar, messages and palette flashes: frames equal the original's wherever compared ([what is and is not](docs/COMPATIBILITY.md#playable-build-m5b)).
@@ -71,9 +72,8 @@ matches, which is what speedrun and tool-assisted (TAS) research need.
 - **Nightmare, `-respawn`, `-fast` and the original's pause.** Skill 4 (fast monsters, corpses that come back to life, double ammunition),
   the two options and the original's pause (the level stops; the status bar and sound go on) play. They are compared with the original's
   engine on synthetic maps, frames and sound included, and locally on real maps and on the owner's hand test of 2026-11-27 (six recordings)
-  ([evidence](docs/validation/WIRE29.md)); real-map figures: REAL-MAP-FIGURES-PENDING. If the original would read memory that a respawned
-  monster's corpse freed, the session stops at that tic instead of guessing
-  ([what it supports](docs/COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause)).
+  ([evidence](docs/validation/WIRE29.md); figures under "Real maps"). If the original would read memory that a respawned
+  monster's corpse freed, the session stops at that tic instead of guessing ([what it supports](docs/COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause)).
 
 Not yet, later: the automap, music, menus, general demo playback, other episodes, or any claim of a match beyond the runs
 recorded so far
