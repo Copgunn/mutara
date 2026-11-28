@@ -3506,9 +3506,9 @@ and `~/scratch/doom-wire29-mixer`, outside the repository).
 ```sh
 # the 19 M6b items through the independent DSIM45 encoder (tests/reference/wire29_state.txt)
 python3 tools/reference/wire29_goldens.py --check
-# the stale-pointer items STALE, STALE2, BOSS2 and FASTOUT, with their self-tests
+# the stale-pointer items STALE, STALE2, BOSS2, FASTOUT, BARRELP/F/N and MISS0/P/F (freed reads of a respawned corpse), with their self-tests
 python3 tools/reference/wire29_stale.py --check --selftest
-# the pinned session streams and the pause items DEADSPEC, LOADP and TURBOP (their frame, pause and sound streams)
+# the pinned session streams and the pause items DEADSPEC, LOADP, TURBOP, REBORNP, MELTP and DEADEXIT (their frame, pause, melt and sound streams, and the later levels' DSIM45 projections)
 python3 tools/reference/wire29_pause.py --check --selftest
 # the pause picture at screen sizes 9, 5 and 3 with our own border lumps
 python3 tools/reference/wire29_border.py --check --selftest
@@ -3541,7 +3541,7 @@ cargo +nightly fuzz run TARGET CORPUS --sanitizer address -- -max_total_time=600
 **The rest of wire 29's tests and tools.** Observed results of all of these are in [the record](validation/WIRE29.md).
 
 ```sh
-# the block-walk overshoot item WRAP (wire 29 follows the wrapping step sum; builds the genuine variants; in CI)
+# the block-walk items WRAP and STEPREAD (wire 29 follows the wrapping step sum, also where the walk reads it again; builds the genuine variants; in CI)
 python3 tools/reference/wire29_wrap.py --check
 # the pause animation, docs/media/wire29-pause.gif (--work outside the repository; --check compares; runs cargo; local)
 python3 tools/media/wire29_readme_visual.py --work DIR --check
@@ -3553,7 +3553,7 @@ python3 tools/media/wire29_resp4_visual.py --work DIR --check
 cargo test -p doom-sim --lib nightmare_tests            # Rust-only rules, planted faults, DSIM45 reader rules
 cargo test -p doom-game --test wire29_display --test wire29_restore --test wire29_session --test wire29_frames
 cargo test -p doom-sound --test dsnd4_reader
-cargo test -p doom-play wire29                          # the Pause key, P under modern bindings, skill 4 and the flags
+cargo test -p doom-play wire29                          # the Pause key, P under modern bindings, skill 4 and the flags, a Pause key held through a melt, the freed-read end screen
 # local only: reads the owner's IWAD in place (a scratch copy), never in CI. Build the two examples first.
 cargo build --release -p doom-sim --example wire29_real -p doom-game --example wire29_session_real
 python3 tools/local/wire29_real.py --iwad IWAD --work DIR --kind skill4,respawn,fast,both,own --jobs 5 --selftest
@@ -3567,6 +3567,11 @@ python3 tools/local/wire29_real.py --iwad IWAD --work DIR --kind sessions --reco
   columns and every level capture, paused tics included). `--selftest` must catch a changed command and an extra `P_Random` draw (and, for
   the pause kind, commands that replace meaningful input). It does **not** compare frames, sound or mixer buffers on real maps; the synthetic
   items do that in CI. `--selftest-recording TICS` makes a recording headlessly through `doom-play`'s own app for a self-run.
+- **The tests added after the first record** (each can fail; the record's [sections 15 to 17](validation/WIRE29.md#15-the-walks-step-sums-wrap-and-stepread) say how):
+  `nightmare_genuine_tests` (`WRAP`, `STEPREAD`, the barrel and missile items and the `sweep` fault), `nightmare_tests::dsim45_kills_pass_the_total_only_with_respawning` (reader rule R4),
+  `wire29_frames` (`REBORNP`, `MELTP`, `DEADEXIT`, the mixer rows), `wire29_session` (`MELTP`; `later_levels_equal_the_genuine_dsim45_captures`, 5 items),
+  `wire29_restore` (`a_first_level_restored_paused_before_its_tic_0_continues_as_the_unbroken_one`), and in `doom-play` `wire29_tests`.
+  The pre-push rule: run every `wire29_*.py --check`, including `wire29_mixer.py`, before a push; a new session item needs its mixer golden (the gap `REBORNP` showed).
 - **Mutation testing of wire 29** follows the method below with the two judges of the record's [section 12](validation/WIRE29.md#12-mutation-testing);
   its `doom-sim` and `doom-game` results are pending there.
 - **Fuzz campaigns** used `cargo +nightly fuzz run` with the default AddressSanitizer build, leak detection on, 601 seconds each, and a

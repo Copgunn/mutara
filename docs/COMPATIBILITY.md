@@ -2251,10 +2251,11 @@ needs momentum above 20 per axis: an API push or hit, or the 4× fall-forward th
 lethal hit on a barrel more than 64 units above its attacker; monsters (radius 20) and the
 player (radius 16, with its own witness) cannot clear a corner this way. **A stale bomb
 source**: The barrel's `target` is a
-generational handle; when `A_Explode` finds it unreadable (its actor was removed), the
-source would read freed memory, so the tic is refused with `PlayerBodyError::Invariant`
-instead (decision F4; unreachable in the admitted domain, where monster corpses and the
-player are never removed). The per-explosion sight control refuses the tic with
+generational handle; when its actor has been removed, the source would read freed memory. Wires 21 to 28 refuse the explosion's tic with `PlayerBodyError::Invariant`
+(decision F4; unreachable there, where monster corpses and the player are never removed). Under wire 29 with respawning a corpse is removed when its monster respawns, so a
+barrel whose first wounder respawned keeps a freed source: the original reads it only in `P_DamageMobj` of a victim in range and sight (p_inter.c:806-809). The port reproduces a
+read while the corpse is still pending, plays on when the explosion damages nothing, and refuses the tic of a read of the freed block with `SimError::FreedRead`, state kept (items
+BARRELP, BARRELN and BARRELF of tools/reference/wire29_stale.py). The per-explosion sight control refuses the tic with
 `PerceptionError::WorkLimit` only on a map outside the sight certificate.
 
 Rust-only API calls on a barrel under wire 21:
@@ -3844,8 +3845,10 @@ genuine engine past the tic wire 26 refuses) and `m6a2_play` (the app played by 
   after the melt and the release in the second (in the original both are handled before the first command and the key never
   shows; the app's rule already differs the same way for any tap shorter than a tic). **Mouse motion during a melt is
   ignored**, not accumulated, as while the app is paused, and the input log writes it as `ignored (melt)`; the log also writes
-  each input held for the melt's end. **The app's own keys** are held like any key: Esc, Pause or a focus loss during a melt
-  pauses when the melt ends (before the next tic), and R or Q after it then act on the pause screen; the screen-size keys are
+  each input held for the melt's end. **The app's own keys** are held like any key: Esc or a focus loss during a melt
+  pauses the app when the melt ends (before the next tic), and R or Q after it then act on the pause screen. **Pause under wire 29 is the original's pause and lands on the
+  first tic after the melt**: the key is held, and the first command after the melt is `0x81` and that tic runs paused (the original has no command during a melt, because its wipe loop reads no
+  input: d_main.c:329-344, d_net.c:402-403, g_game.c:426-428; run, item `MELTP`, [record §16](validation/WIRE29.md#16-pause-around-melts-and-reborns-and-the-mixer-golden-gap)). In configurations older than wire 29 Pause is the app's pause and works as Esc does; the screen-size keys are
   withheld from the game as always (the screen size is fixed for the run). Closing the window always quits at once, a melt
   included; the demo then holds every tic before it. At most 1,024 inputs are held in one melt; past that the held inputs are
   dropped and every key is released when the melt ends, as the event layer does at its own bound.
@@ -4027,7 +4030,7 @@ skipped the cap (p_inter.c:836-842) in `strike_player`, where the genuine engine
 | `-respawn`, `-fast` | `GameParameters`, two options saved in the state; `respawnmonsters` is skill 4 or `-respawn`; the fast table is a function of the options (skill 4 or `-fast`): the thirteen Demon and Spectre states halved, the three missile speeds 20 | g_game.c:1416-1436 |
 | `A_Chase` | After an attack the monster picks no new direction on skill 4 or with `-fast`; it may fire with `movecount` left | p_enemy.c:716-722, 738-742 |
 | The corpse respawn | A `MF_COUNTKILL` corpse at `tics` -1 counts `movecount` to 420, then on every 32nd leveltime draws `P_Random` (at most 4 passes) and, if its spawn point is free for the corpse, makes two fogs and the monster there, with `reactiontime` 18, and removes the corpse | p_mobj.c:356-409, 450-471 |
-| Kills above the total | The DSIM45 reader no longer refuses a kill count above the level's total; the intermission shows the percentage past 100 | wi_stuff.c (Q-wi_stuff-1338) |
+| Kills above the total | The DSIM45 reader accepts a kill count above the level's total **only with respawning** (skill 4, or the `-respawn` option set; a corpse that respawns is counted again); without it the count above the total is still refused. The intermission shows the percentage past 100 | wi_stuff.c (Q-wi_stuff-1338); [record §17](validation/WIRE29.md#17-the-independent-read-eight-findings) R4 |
 | The pause: command | A command byte with bit 7 (`BT_SPECIAL`) is admitted except the save command (low bits 10); a live player's buttons are zeroed after the move, a dead player's are read raw; `0x40` alone and the save command stay refused | g_game.c:698-708; p_user.c:227, 280-281 |
 | The pause: the stopped level | A paused tic runs no thinkers; `gametic` goes on (`level.gametic_lead`), the turbo message is tested against it; the status bar's ticker and the message timer go on; the M_PAUSE picture is drawn; sounds play out; the sound's pause and resume calls are modelled; a level load clears the pause | p_tick.c:135-136; g_game.c:494, 672-679; d_main.c:303-311; s_sound.c:497-513 |
 | Walk step sum | The `int` step sum of `P_PathTraverse` (p_maputl.c:868, 873) wraps where it leaves `int`, as the strict build does and as wire 27 follows `P_InterceptVector`; the slide trace's wrap class of item `WRAP` takes the genuine value | p_maputl.c:802-876 |
@@ -4038,9 +4041,19 @@ skipped the cap (p_inter.c:836-842) in `strike_player`, where the genuine engine
   **Esc and focus loss keep the app's own pause**, outside the demo; while it holds, the Pause key does nothing; Esc works during the original's pause
   (ruling N7). No cheat lockout exists anywhere: the original has none either, and cheats are not ported.
 - **Refused or not reproduced, and why it is not a silent divergence:**
-  (1) **A read of a freed respawned corpse** (a player's `attacker` or a monster's `target` that `A_Chase` reads after the corpse's block was freed)
-  refuses the tic with `FreedRead`, state kept; the genuine engine reads the bytes the corpse left, defined only while no later allocation reuses
-  the block ([Q-p_mobj-408](quirks/p_mobj.c.md), items `STALE` and `STALE2`).
+  (1) **A session with respawning (skill 4 or `--respawn`) can stop at a read of freed memory.** The original removes a monster's corpse when the monster respawns
+  and nothing clears the pointers that still name it. The refusal is `SimError::FreedRead`, at the genuine engine's first read of the freed block, with the state of the tic before kept.
+  What the original reads there is whatever the block holds: `Z_Free` writes only the block's header, so the corpse's bytes stay until a later `Z_Malloc` reuses the block (no reuse in any run;
+  a scrub build that fills the bytes with 0x00 equals the strict build, with 0xff it crashes), so the outcome depends on memory outside defined state. **Four things read such a pointer:**
+  `P_DeathThink` (p_user.c:200-205: a dead player still facing the monster that killed him; item `STALE`), `A_Chase` (p_enemy.c:683-684, 704-705: a monster still chasing a respawned target; `STALE2`),
+  a barrel's explosion with a victim in range and sight (p_enemy.c:1600, p_inter.c:806-809: a barrel whose first attacker respawned; `BARRELF` refused at tic 961, `BARRELP` a pending read reproduced, `BARRELN` nothing in range and no refusal),
+  and a missile touching a thing (p_map.c:298-301: a fireball whose shooter respawned; `MISSF` refused at 804, `MISSP` a pending read reproduced, `MISS0` never touches and no refusal).
+  **A read while the corpse is removed but not yet freed** (the rest of the respawn tic, until the corpse's turn in the next tic's thinker pass) **is reproduced, and a pointer that is never read changes nothing.**
+  The missile preflight changed with it: a flying missile whose shooter respawned is no longer refused at the next tic's preflight (`ProjectileError::Owner`); it waits for the contact, as the original reads the shooter only there. Wires 1 to 28 keep that refusal (unreachable there).
+  **`doom-play` shows** the end screen "simulation: FreedRead. The original would read freed memory here, through a pointer to a monster's corpse removed when the monster respawned. What it reads depends on the memory allocator, so the
+  session stops here instead of guessing." and saves the demo complete up to that tic (test `wire29_tests::a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved`, run). How many real-map replays and hand recordings end here:
+  REAL-MAP-FIGURES-PENDING ([record §8](validation/WIRE29.md#8-real-maps-and-the-session)). A labelled non-vanilla option that plays on past it is decision D50, **not in this PR**
+  ([record §18](validation/WIRE29.md#18-decisions-d50-to-d53)). Quirk rows [Q-p_mobj-408](quirks/p_mobj.c.md), Q-p_user-200.
   (2) **A missing or malformed M_PAUSE** refuses the first paused tic. (3) **A missile farther from the map's origin than 32,767 units less margins** (D17) is refused.
   (4) **The pause picture below screen size 10** and sizes below 10 are not drawn: the session admits 10 and 11 only (the picture's place is
   compared at 10 and 9). (5) **Table histories (N4):** a second `-fast` game in one process, a loaded save and the level-warp cheat are not
@@ -4053,10 +4066,10 @@ skipped the cap (p_inter.c:836-842) in `strike_player`, where the genuine engine
   [session formats](STATE_FORMAT.md#session-formats-of-wire-29-dses-4-ddsp-5-dsnd-4-demo-version-4). The session configuration is
   `Configuration::FinaleAndMeltWire29`. A `DSES` 4 state can be saved while paused and restored.
 - **Evidence and its limits:** the 19 synthetic items and the later ones (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `WRAP`, `DEADSPEC`, `LOADP`, `TURBOP`,
-  `REBORNP`) equal the genuine engine at every capture, frame, sound row and mixer buffer where the record says so; real maps: REAL-MAP-FIGURES-PENDING; the owner's
+  `REBORNP`, `STEPREAD`, `MELTP`, `DEADEXIT`, `BARRELP`, `BARRELF`, `BARRELN`, `MISS0`, `MISSP`, `MISSF`) equal the genuine engine at every capture, frame, sound row and mixer buffer where the record says so (`STEPREAD`: an overflowed step sum read again is followed, and no run or reading can tell a wrapping sum from a saturating one, [record §15](validation/WIRE29.md#15-the-walks-step-sums-wrap-and-stepread)); real maps: REAL-MAP-FIGURES-PENDING; the owner's
   hand test (six recordings, 836 paused tics, 14 genuine respawns) equals the genuine engine at both levels, on the state, not on frames or sound.
   Not covered: the finale on a real map with a pause, Cacodemons, `MT_SPAWNCEILING`, a reused zone block, the original's music while paused, other table histories.
-  Mutation testing of the `doom-sim` and `doom-game` diff is pending in the record, and so is the independent read.
+  Mutation testing of the `doom-sim` and `doom-game` diff is pending in the record. An independent read of the diff was made once and its eight findings are answered in [record §17](validation/WIRE29.md#17-the-independent-read-eight-findings).
 
 ## Known gap: THING loading stops at the first Doom II type outside commercial mode
 

@@ -2611,7 +2611,7 @@ The two offsets 156 and 259 are measured on the first capture of item `BITS3` (t
 `level.gametic_lead` moves with the actor count. **What the v45 reader (`Diagnostic::decode_episode1_v7`) checks beyond v44's:**
 `actors.parameters` is exactly two values of 0 or 1 (else `Structure`); `level.gametic_lead` lies in `level.start.gametic` to `i32::MAX`
 (else `Schema`); skill 4 is admitted (bounds taken with THING bit 4); a decoration's reaction time is 0 at skill 4 (p_mobj.c:503-504); kill
-credit may exceed `level.total_kills` (still not negative); a Demon or Spectre in a run to pain state (477 to 489) has `tics` in 1 to the
+credit may exceed `level.total_kills` (still not negative) **only with respawning**, that is skill 4 or `actors.parameters` byte 0 (`respawnparm`) set (else `Hard`, as in v44; review finding R4); a Demon or Spectre in a run to pain state (477 to 489) has `tics` in 1 to the
 duration of the table in force, halved iff skill 4 or `fastparm` (g_game.c:1423-1424), else `Identity`; this bound also holds the slow
 table (D4). Missile speeds are not validated. The paused byte of the simulation stays 0 (the session owns the flag, ruling N6 (a)).
 **Frozen-reader rule:** the v44 reader and every older one refuse 45 (`Version`); the v45 reader reads 45 only. A DSIM45 writer is
@@ -3109,10 +3109,10 @@ is `DemoError::Header`. The version 2 readers keep refusing 0 and 1. Both v3 rea
 | File | Schema | Rows |
 | --- | --- | --- |
 | `tests/reference/wire29_state.txt` | `DOOM-WIRE29-STATE-v1` | `I,item,source,skill,respawnparm,fastparm,tics,run_captures,dumps_sha256,captures,map_sha256,sequence_sha256`: one per item; `C,item,capture,state_sha256`: the genuine strict build's DSIM45 state after each tic, through the independent encoder; `V,variant,item,dump_place,first_differing_capture,variant_state_sha256` (`refused` where DSIM45 cannot hold the state) |
-| `tests/reference/wire29_stale/` | `DOOM-WIRE29-STALE-v1` | per item (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `WRAP`): a `*_state.txt` with `I`, `C` and `O` rows (the observer build's facts; `WRAP` also `V`), and the item's WAD, demo and stream |
-| `tests/reference/wire29_session/` | per file | the 13 pinned M6b session streams and the items `DEADSPEC`, `LOADP`, `TURBOP`, `REBORNP` with their state, frame, pause (`B` rows) and sound streams |
+| `tests/reference/wire29_stale/` | `DOOM-WIRE29-STALE-v1` | per item (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `BARRELP`, `BARRELF`, `BARRELN`, `MISS0`, `MISSP`, `MISSF`, and `WRAP` and `STEPREAD` from `wire29_wrap.py`): a `*_state.txt` (`stepread_state.txt`, `wrap_state.txt`, `barrel*_state.txt`, `miss*_state.txt`) with `I`, `C` and `O` rows (the observer build's facts: overflowing and read step sums, pending and freed reads of a removed corpse; `V` rows for the planted variants), and the item's WAD, demo and stream |
+| `tests/reference/wire29_session/` | per file | the 13 pinned M6b session streams and the items `DEADSPEC`, `LOADP`, `TURBOP`, `REBORNP`, `MELTP`, `DEADEXIT` with their state (`<item>_state.txt`, `deadexit_state.txt` among them), frame, pause (`B` rows), melt (`MELTP.sb10.melt`) and sound streams; and `<item>_levels.txt` (schema `DOOM-WIRE29-LEVELS-v1`): the `DSIM` 45 projection of each later level of `DEADSPEC`, `LOADP`, `REBORNP`, `MELTP` and `DEADEXIT`, one `D` row per session tic of that level, paused tics included (a paused load tic's sound records are pending at its capture and first in tic 0's last, as the `DSIM` 42 text says) |
 | `tests/reference/wire29_border/`, `tests/reference/wire29_wads/border.wad` | per file | the pause picture's place at screen sizes 9, 5 and 3 (`B` rows) and `O` rows, with our own border lumps |
-| `tests/reference/wire29_mixer/`, `wire29_mixer_results.json` | per file | the genuine mixer's rows for the 11 M6b and wire 29 sound streams |
+| `tests/reference/wire29_mixer/`, `wire29_mixer_results.json` | per file | the genuine mixer's rows for the M6b and wire 29 sound streams (14 items at the last `--check`) |
 
 Digests come from the genuine runner's dumps through the independent encoder, never from Rust output. Commands: [TESTING](TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine).
 

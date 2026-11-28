@@ -95,7 +95,8 @@ cargo run --release -p doom-play -- --iwad /path/to/DOOM.WAD --map 1 --skill hmp
 - **Controls.** The original's defaults: arrows move and turn, right Ctrl fires, Space uses, right Shift runs, `1`-`8`
   pick weapons, mouse left fires (`--bindings modern` gives WASD). Pause is the original's pause (`P` too with `--bindings modern`), Esc pauses the window (R restarts, Q quits), End mutes.
 - **Limits.** Needs an OpenGL 2.1 driver; no menus, saving or cheat codes
-  ([every limit, and what has been tried](docs/COMPATIBILITY.md#playable-build-m5b)).
+  ([every limit, and what has been tried](docs/COMPATIBILITY.md#playable-build-m5b)). A session with monsters respawning (skill 4, or `--respawn`) can stop at a read of
+  freed memory the original would follow (a pointer to a removed corpse; four causes, [listed](docs/COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause)).
 
 ## How it's verified
 The original C source is the ground truth. Each behavior runs in both the original and the Rust code, and the whole game state is

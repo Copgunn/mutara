@@ -679,7 +679,7 @@ The entries marked merged below are done; they keep their place here because thi
   - **A later pull request audits what the old certificate argument covers** (**done in draft PR #87, 2026-11-26**:
     [record](validation/AUDIT1.md)). It added tests, tools, synthetic goldens and CI steps, and no engine line. Results: the sector-11 cap
     is run per damage path and wire (only the Demon and Spectre bite on wires 23 to 27 is uncapped, as known; E1M8 only); the overshoot is shown in a
-    full-engine run and the Rust walks visit the same cells (an overshoot that wraps is refused, not silent; no wire 29 item); the `movement.rs:869`
+    full-engine run and the Rust walks visit the same cells (an overshoot that wraps is refused, not silent; no wire 29 item at that date: wire 29 later follows the wrapping sum, ruling D44 (b), [COMPATIBILITY](COMPATIBILITY.md#known-gap-the-block-walk-can-overshoot-its-end-cell)); the `movement.rs:869`
     survivor is killed; the reader's harness and the flaky test are done. No silent divergence reachable in play on wire 28 was found. The owner alone
     decides on a wire 29. The items as first written (history, kept): Its first item: a full-engine
     synthetic case where a short slide or use trace overshoots its block walk, compared tic for tic against Rust under wires
@@ -709,11 +709,11 @@ The entries marked merged below are done; they keep their place here because thi
   respawn), the two options, kills above the level total, the pause (command byte, paused tic, turbo message, the stopped level with its picture and
   sound calls) and the block-walk's wrapping step sum; `doom-play` plays skills 0 to 4 with `--respawn`, `--fast` and the Pause key (`P` too under modern bindings;
   Esc and focus loss keep the app's pause). Built and compared with the genuine engine on the 19 synthetic items of phase 1 and nine more
-  (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `WRAP`, `DEADSPEC`, `LOADP`, `TURBOP`, `REBORNP`), on frames, sound and mixer, on real maps (REAL-MAP-FIGURES-PENDING) and on
+  (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `WRAP`, `DEADSPEC`, `LOADP`, `TURBOP`, `REBORNP`, `STEPREAD`, `MELTP`, `DEADEXIT`, `BARRELP`, `BARRELF`, `BARRELN`, `MISS0`, `MISSP`, `MISSF`), on frames, sound and mixer, on real maps (REAL-MAP-FIGURES-PENDING) and on
   the owner's hand test of 2026-11-27 (six recordings) ([rule](COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause), [evidence](validation/WIRE29.md)). Not done, by design: a read of a
-  freed respawned corpse is a refuse-the-tic stop (`FreedRead`), not the original's behaviour; the other fast-table histories wait for menus, saves and cheats;
-  mutation testing of the `doom-sim` and `doom-game` diff and the independent read are pending ([record §12](validation/WIRE29.md#12-mutation-testing)); cheats are not in
-  this milestone, and no Nightmare lockout exists.
+  freed respawned corpse (four readers: the dead player's turn, a monster's chase, a barrel's explosion, a missile's contact) is a refuse-the-tic stop (`FreedRead`), not the original's behaviour, and a non-vanilla option to play on is decision D50, for a later milestone; the other fast-table histories wait for menus, saves and cheats;
+  mutation testing of the `doom-sim` and `doom-game` diff is pending ([record §12](validation/WIRE29.md#12-mutation-testing)); cheats are not in
+  this milestone, and no Nightmare lockout exists; the independent read's eight findings are answered in [record §17](validation/WIRE29.md#17-the-independent-read-eight-findings).
 - **Simulation follow-up (decided: the THING-loading truncation is closed under wire 25 only).** `P_LoadThings` ends the
   whole THINGS loop at the first Doom II type (doomednums 64-69, 71, 84, 88, 89) when `gamemode != commercial`
   (p_setup.c:317-337). Wire 25 (decision T4, confirmed 2026-11-18) stops loading there, with a synthetic map and

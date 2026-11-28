@@ -26,7 +26,7 @@ bytes, admission and refusals.
 
 ## 2. Decisions
 
-N1 to N11 are the owner's, in the note's [Rulings](../M6B_REFERENCE_INVESTIGATION.md#rulings) table. D1 to D49 below are decisions of
+N1 to N11 are the owner's, in the note's [Rulings](../M6B_REFERENCE_INVESTIGATION.md#rulings) table. D1 to D53 below are decisions of
 the building steps. **Only the ones marked "owner" were ruled on by the owner; the others were taken by the building agent and are
 changeable before merge.** D43 and D45 to D48 are not in the fact sheet the record is written from: nothing is claimed for them.
 
@@ -76,6 +76,10 @@ changeable before merge.** D43 and D45 to D48 are not in the fact sheet the reco
 | D42 | Phase 2 in two tiers: the `doom-game` test binaries named `wire29*` first, then the full suite for what survived | The full suite for every missed mutant |
 | D44 | **Owner (b):** the walk's wrapping `int` step sum (`p_maputl.c:873`) is followed as the strict build wraps it; WRAP is compared through its last capture; the refusal was removed | (a) refuse the tic at the first overflowing sum (built, then replaced); (c) admit only sums never read again |
 | D49 | **Owner:** recorded for the future cheats milestone, nothing built: under `--bindings modern` the letters of the cheat strings are also bound (`P` pauses; `a`, `s`, `d`, `w` move; `e` uses) | (a) as the original, keys do both; (b) a cheat-typing mode; (c) a lockout while `id` is matching; (d) cheats only under vanilla bindings |
+| D50 | **Not this PR, nothing built, no recommendation from the building agent:** a labelled non-vanilla option that plays on past a freed read. The options seen in the runs, (a) to (d), are in [§18](#18-decisions-d50-to-d53) | Today: (d), the session stops at the read |
+| D51 | The later-level projection of a paused load tic's sound records: pending at the paused load capture and first in tic 0's last (the `DSIM` 42 text of STATE_FORMAT) | (b) leave `events.sounds` out of later-level comparisons; (c) record the load's records under the session tic they were made at only |
+| D52 | `BARRELP` and `BARRELF` end at the M5b runner's declared `AttackerRemoved` witness (the status bar's presentation); the simulation test plays `BARRELF`'s read tic past the last capture, compared with nothing | (b) monster victims only, so the runner runs on (more authoring) |
+| D53 | The planted fault `sweep` also zeroes the threshold of a mobj whose target it clears | (b) the target only (the port's `DSIM` 45 reader then refuses a barrel with a threshold and no target) |
 
 Also owner-ruled in these steps, without a number: finding F1 ([§7](#7-finding-f1-a-fast-fireball-through-a-maps-outer-wall)) is
 reproduced, not refused, unless a run shows dependence on memory outside defined state. No cheat lockout of any kind was added.
@@ -117,11 +121,16 @@ streams); the observer prints what the plain build cannot. The address builds ar
 | `STALE2` | A sleeping imp whose `target` is a zombieman's freed corpse is woken by sourceless damage and `A_Chase` reads the target | 3,227 captures equal (0 to 3226, the sleep on a freed target included); refused at session tic 3226 with `FreedRead` |
 | `BOSS2` | Two Barons telefragged, respawned (leveltimes 1344, 1920, 2432) and telefragged again; `A_BossDeath`'s tag-666 call at 146, 1494 and 2343 returning 1, 0, 1 | Equal at all 2,701 captures, no fix; mutation (skip a 0-unit floor) fails at capture 2344 |
 | `FASTOUT` | A fast fireball leaves the map ([§7](#7-finding-f1-a-fast-fireball-through-a-maps-outer-wall)) | 141 captures equal; with the follow rule forced off, refused at session tic 55 |
-| `WRAP` | The block-walk overshoot's wrapping step sum, p_maputl.c:873 (audit 1's item, `overshoot.wad`) | Equal at all 58 captures; 7 overflowing sums, all at 873, none read again; the overflow and address builds stop at the first (after capture 53), the strict build, which is the claim, goes on |
+| `WRAP` | The block-walk overshoot's wrapping step sum, p_maputl.c:873 (audit 1's item, `overshoot.wad`) | Equal at all 58 captures, no refusal (ruling D44 (b), [§15](#15-the-walks-step-sums-wrap-and-stepread)); 7 overflowing sums, all at 873, none read again; the overflow and address builds stop at the first (after capture 53), the strict build, which is the claim, goes on |
 | `DEADSPEC` | `0x81` on a dead player's tics; `0x83` reborns | Genuine and port equal; paused 170 to 179, the unpausing `0x81` at 180 gives no reborn, `0x83` at 185 reborns at 186 |
 | `TURBOP` | The turbo message set on a paused tic, shown by the status bar's ticker while paused | Equal; message on at session tic 256 (paused), not at 160 |
 | `LOADP` | A paused load tic (`PAUSEWI`'s second level, tic 0 at 146) | Equal; found the fixes F2 and F3 below |
-| `REBORNP` | `0x81` on a reborn's load tic | 260 tics, 4 paused frames, every frame, sound, music and B row equal; mutation `&&` to `||` at session.rs:472 fails at the paused reborn tic's frame |
+| `REBORNP` | `0x81` on a reborn's load tic | 260 tics, 4 paused frames, every frame, sound, music and B row equal; mutation `&&` to `||` at session.rs:472 fails at the paused reborn tic's frame; its mixer golden was missing until the pre-push check ([§16](#16-pause-around-melts-and-reborns-and-the-mixer-golden-gap)) |
+| `STEPREAD` | An overflowed step sum (p_maputl.c:868) read again by the walk ([§15](#15-the-walks-step-sums-wrap-and-stepread)) | 17 captures equal, no refusal |
+| `MELTP` | `0x81` around three screen melts ([§16](#16-pause-around-melts-and-reborns-and-the-mixer-golden-gap)) | 175 tics, 7 paused frames, 127 captures, 3 melts of 115 steps, all equal |
+| `DEADEXIT` | A paused load tic after a dead player's exit (review finding R2, [§17](#17-the-independent-read-eight-findings)) | 188 tics, 4 paused frames, equal after the fix |
+| `BARRELP`, `BARRELF`, `BARRELN` | A barrel whose first wounder respawned explodes: read while pending, read freed, nothing in range (R1) | Equal; `BARRELF` refused at 961 with `FreedRead` |
+| `MISS0`, `MISSP`, `MISSF` | A fireball whose shooter respawned: never touches, touches while pending, touches after the free (R3) | Equal; `MISSF` refused at 804 with `FreedRead` |
 | border (`wire29_border.py`) | The M_PAUSE picture at screen sizes 10, 9, 5 and 3 with our own border lumps | Place found once per size: `(126, 4)`, `(126, 16)`, `(126, 48)`, `(126, 64)`; 214 paused frames at each size |
 
 The five "read only" items of phase 1 that this PR ran: a second boss death with the tag-666 call (`BOSS2`); a special byte on a dead
@@ -130,7 +139,7 @@ paused reborn load tic (`REBORNP`). What stays unrun is in [§14](#14-limits-and
 
 ## 5. The session, frames, sound and mixer
 
-The session is compared with the genuine session streams by `wire29_session.rs` (22 items: the 19 plus `DEADSPEC`, `LOADP`, `TURBOP`;
+The session is compared with the genuine session streams by `wire29_session.rs` (its list now has 24 items; the totals in this paragraph were counted when it had 22, the 19 plus `DEADSPEC`, `LOADP`, `TURBOP`, and are not recounted: read, not run;
 12,334 session tics; every G column, C, I, J and F row equal; 9,974 first-level captures equal; paused tics `PAUSE` 214, `PAUSE0` 21,
 `PAUSEWI` 9, `PAUSEFIN` 111, `DEADSPEC` 10, `LOADP` 13, `TURBOP` 214; the intermission's kill percentages 200, 150 and 100 for `RESP4`,
 `RESP3R` and `RESP3`). The frames, the pause picture, the music calls and the mixer by `wire29_frames.rs`: 14 runs, 11,460 tics; level
@@ -140,8 +149,9 @@ are a further test. Melt step pictures are not compared (the M6b goldens used th
 mixed after each melt is. The 13 M6b session streams that were not committed are regenerated by the strict runner into
 `tests/reference/wire29_session/` and pinned by `m6b_genuine.txt`'s digests.
 
-[`wire29_mixer.py`](../../tools/reference/wire29_mixer.py) runs the frozen M5c mixer harness on the 8 M6b and 3 wire 29 sound streams: 11
-items, 276 starts, 9,008 tics, 5,547 buffers; strict, overflow, address and the model identical; `detect_leaks=0`. Self-tests of the tool:
+[`wire29_mixer.py`](../../tools/reference/wire29_mixer.py) runs the frozen M5c mixer harness on the 8 M6b and 6 wire 29 sound streams
+(`--check` at the last head, exit 0): 29 files, 14 items, 316 starts, 9,631 tics, 5,934 buffers; strict, overflow, address and the model
+identical; `detect_leaks=0`. Self-tests of the tool:
 a flipped stream byte and a moved start are both reported.
 
 **The two pictures** (README). [`wire29_readme_visual.py`](../../tools/media/wire29_readme_visual.py) draws `docs/media/wire29-pause.gif`, the
@@ -156,6 +166,11 @@ byte for byte (0 differing pixels) and each equal to its committed digest; the g
 capture 137; `pause_run` at `PAUSE` 73 and `PAUSE0` 1; `pause_st` at session line 154 (tic 72); `pause_keep` at `PAUSEWI` tic 142; `pause_wi`
 at tic 127; `pause_hu` at `PAUSE` frame 145, hashing to the variant's F row digest; the picture one row lower at tic 72. A mutation that
 removes the stripping of tic 0's load records fails `LOADP` at tic 146.
+
+**Later levels.** `wire29_pause.py` also dumps each later load of its items and projects the later levels (`tests/reference/wire29_session/<item>_levels.txt`):
+`DEADSPEC` 74 captures, `LOADP` 28, `REBORNP` 74, `MELTP` 36, `DEADEXIT` 40, 252 in all, one per session tic of the later level (paused tics
+included); `later_levels_equal_the_genuine_dsim45_captures` compares each with the port (252 equal, each read by the `DSIM` 45 reader).
+`PAUSEWI`'s later level is not projected (its M6b run is not in this tool: not done). See finding R5 in [§17](#17-the-independent-read-eight-findings).
 
 **Fixes the new evidence found** (each: C evidence, fix, test):
 
@@ -172,8 +187,7 @@ removes the stripping of tic 0's load records fails `LOADP` at tic 146.
 
 `P_NightmareRespawn` removes the corpse (p_mobj.c:408) and nothing sweeps the pointers that name it; `P_RunThinkers` frees the block at
 the corpse's next turn (p_tick.c:107-112). The paths that read such a pointer, in the Episode 1 monster set: `P_DeathThink`'s read of
-`player->attacker->x` (run, `STALE`), `A_Chase`'s reads of `target` (run, `STALE2`), and, read and not run, a missile's `target` after a
-flight of 405 tics or more. What the genuine engine does (run, strict, overflow, address and observer builds identical): `STALE` has the
+`player->attacker->x` (run, `STALE`), `A_Chase`'s reads of `target` (run, `STALE2`), and a missile's `target` on contact (p_map.c:298-301; run since, `MISSF`, [§17](#17-the-independent-read-eight-findings)). What the genuine engine does (run, strict, overflow, address and observer builds identical): `STALE` has the
 player dead from capture 924, the respawn at leveltime 1408, one read while the corpse is pending (block still in use), then 108 reads of
 the freed block to the end (1,518 tics), 0 `Z_Malloc` blocks overlapping it; it computes the angle to the corpse's last coordinates, so the
 dead player keeps facing where the corpse lay. `STALE2`: one read by `A_Chase` of the freed block (health and flags of what the corpse
@@ -186,7 +200,8 @@ an authoring run with a 2,600-tic tail: 2,058 freed reads, 0 reuse).
 
 **What wire 29 does (D13, D14).** The first read of the retired corpse is a refuse-the-tic witness, `SimError::FreedRead`, state kept
 (`STALE`: session tic 1410; `STALE2`: 3226). The read while the corpse is pending is reproduced. A live monster's removed target is left to
-`A_Chase` (D14); the chase guard that used to `unwrap()` the target now refuses. Whether the real-map skill 4 runs met a `FreedRead`, a `MapScale` or a stale-target refusal:
+`A_Chase` (D14); the chase guard that used to `unwrap()` the target now refuses. Two more readers, found by the independent read, are in
+[§17](#17-the-independent-read-eight-findings): a barrel's explosion (p_inter.c:806-809) and a missile's contact (p_map.c:298-301). Whether the real-map skill 4 runs met a `FreedRead`, a `MapScale` or a stale-target refusal:
 REAL-MAP-FIGURES-PENDING ([§8](#8-real-maps-and-the-session)). Quirk rows Q-p_mobj-408 and Q-p_inter-680.
 
 ## 7. Finding F1: a fast fireball through a map's outer wall
@@ -221,6 +236,19 @@ runs with a forward above 50 also leave out the turbo message). `0x83` is not in
 **Results:** REAL-MAP-FIGURES-PENDING (the 305 simulation-level replays: captures equal, refusals, genuine respawns; the pause and skill 4 runs
 at the session level: tics, captures, paused tics, respawns, shifted-comparison captures). Earlier batches
 were stopped for corrections of the tools (an encoder deficiency on pending mobjs, a shifted-comparison digest), never for speed.
+
+**Replays that end at the freed-read refusal** (a respawning session can stop at a read of freed memory, [§17](#17-the-independent-read-eight-findings)):
+of the 305 final replays, REAL-MAP-FIGURES-PENDING end at it; of the six hand recordings ([§9](#9-the-owners-hand-test-2026-11-27)),
+REAL-MAP-FIGURES-PENDING. A replay that ends there ends complete up to that tic and is counted as a refusal, not as a failure.
+
+**The two sums behind the README's evidence sentence** (counted as the owner ruled on 2026-11-27; both are filled in afterwards):
+
+| Sum | Counts | Does not count | Figure |
+| --- | --- | --- | --- |
+| Replays equal to the genuine engine | every replay of an existing recording on another skill, with `--fast`, with `--respawn` or both (kinds `skill4`, `respawn`, `fast`, `both`; where the pause kind belongs is not in the ruling and is left to the final count) | the unchanged control replays (kind `own`) | REAL-MAP-FIGURES-PENDING |
+| Distinct recordings | the committed real-map recordings replayed, and the six hand recordings of [§9](#9-the-owners-hand-test-2026-11-27) | a recording counted twice | REAL-MAP-FIGURES-PENDING |
+
+The README sentence, with the figures to fill in: "N replays of M distinct recordings equal the original's engine tic for tic (a replay of an existing recording on another skill or option counts, an unchanged one does not)", N = REAL-MAP-FIGURES-PENDING, M = REAL-MAP-FIGURES-PENDING.
 
 ## 9. The owner's hand test, 2026-11-27
 
@@ -333,8 +361,108 @@ threshold were not changed.
   synthetic WAD without it; no genuine item); the automap's `y = 4` picture place (no automap); a melt step picture with the pause picture
   in its end screen; Cacodemon and `MT_SPAWNCEILING` respawns (not in Episode 1); a monster awake in its see state at the moment its target
   is freed; a reused zone block; a rocket or Baron fireball outside the map; the original's music while paused; the genuine engine on
-  wire 14's soak; the sound or frames of a real-map pause (compared on synthetic items only); the Windows build of anything but the hand test.
-- **Independent read:** pending (a fresh reviewer's read of the diff against the C, as the plan's step 11 names it).
+  wire 14's soak; older wires reaching a removed barrel source or missile owner (no corpse is removed there); a genuine `Z_Malloc` reuse of a freed corpse (none in any run; the scrub builds stand in); `STEPREAD` and `MELTP` under older wires; `PAUSEWI`'s later level; the sound or frames of a real-map pause (compared on synthetic items only); the Windows build of anything but the hand test.
+- **Independent read:** done once, by reading only, at `c5c56685`: eight findings, answered in [§17](#17-the-independent-read-eight-findings). The reviewer ran nothing; the runs are the building agent's. A second read of the final diff is not recorded here.
 - **Authoring exits.** Every nonzero exit seen while building is resolved; the ones that matter for method: the real-map batches stopped
   and restarted for tool corrections (not speed); one gate script of mine was killed when its head became obsolete (the D44 ruling);
   `cargo fmt --check` failed twice on my own new tests and was fixed in the next commit.
+
+## 15. The walk's step sums: WRAP and STEPREAD
+
+**WRAP under ruling D44 (b).** The first build refused the tic at the first overflowing step sum (decision D44 (a): `WRAP` compared at 54 captures,
+refusal at session tic 53). The owner ruled (b) on 2026-11-27: wire 29 follows the wrapping `int` sum at p_maputl.c:873 as the strict build
+(`-fwrapv`) wraps it, the way wire 27 follows `P_InterceptVector`'s sums, and the refusal was removed. Observed: the Rust walk equals
+the genuine engine at **all 58 captures** of `WRAP` (each read by the `DSIM` 45 reader), no refusal; the golden counts 7 overflowing sums, all at line 873, at session tics 53, 53, 53,
+54, 54, 55 and 56, every one dead (the next test is the end cell, so the wrapped value is never read again); the overflow and address builds stop at the first one
+(captures 0 to 53 defined), and the strict build, which is the claim, goes on. The planted `WrapZero` fault first differs at capture 53. The test can fail: with
+the sum refusing on overflow it fails (refusal at 53); with the sum saturating it still passes, because `WRAP`'s sums are all dead (see `STEPREAD`).
+
+**The frozen-wire proof (run).** The base (`682de22c`) and the head were compared again after the change; the figures are in [§13](#13-the-frozen-wires-and-the-instruction-counts)
+(104 output files and the `overshoot_walk` tests identical; wire 14's soak, which overflows the step sum twice, gives the same state digests at base and head).
+`WRAP` itself, run under wires 26 to 28, is still refused at session tic 52 with `MapScale(Arithmetic)`, state kept, as before.
+
+**`STEPREAD` (an overflowed sum read again).** The owner asked for an item where the overflowed sum is read again by the walk, equal to the genuine strict
+build state for state, and a planted saturating fault that is caught. Built: our own room, the player's momentum large enough that `FixedDiv` saturates `ystep`
+(session tic 7), so the sum at p_maputl.c:868 overflows and the next iteration tests it at line 866. Observed on the genuine engine: the strict build is
+clean (17 captures); the overflow and address builds stop at line 868 after 8 dumps; the observer shows the overflow live (not the last trace) and the read
+(`yintercept>>16` is -32,767 against `mapy` 1: false). The Rust walk equals the strict build at all 17 captures, no refusal. The genuine `saturate` variant
+equals the strict build at all 17 `STEPREAD` and all 58 `WRAP` captures.
+
+**Said plainly: a saturating fault cannot be caught here, by run or by code.** Run: replacing the sum by a saturating one in the Rust walk leaves both the
+`STEPREAD` and the `WRAP` tests passing, and the genuine saturating build equals the strict one everywhere. Code (read, with the proof in the docstring of
+`wire29_wrap.py`): a step is taken only when `(sum >> 16)` equals the current cell (p_maputl.c:866, 871), and the cells lie within
+256 + 63 of the origin, so a sum is below 320 x 2^16 before the add; a `FixedDiv` step that did not saturate is below 2^30, so only MAXINT or MININT can
+overflow the sum, and the wrapped value shifted by 16 lies in -32,768 to -32,450 or 32,449 to 32,767, as does the saturated one: never a cell the walk can be in.
+Every later test is false either way and the sum is never stepped again, so wrapping and saturating give the same walk in every case. What the
+tests can catch is a refusal (an `Arithmetic` refusal on overflow fails `STEPREAD` at session tic 7). Quirk rows Q-p_maputl-868a and 868b (868b, the older wires, stays not determined).
+
+## 16. Pause around melts and reborns, and the mixer golden gap
+
+**The mixer golden gap (found by the pre-push check).** `wire29_mixer.py --check` exited 1 on the check run before the push: item `REBORNP`
+had no committed mixer starts file, golden or results row. Fixed by writing them (`REBORNP`: 5 starts, 260 tics, 160 buffers; its sound stream is byte-identical to `DEADSPEC`'s, so the two
+goldens are identical). `--check` now exits 0 at the last head (the totals are in [§5](#5-the-session-frames-sound-and-mixer)). The `REBORNP` frames test now compares the mixer and fails with one golden digit
+changed ("mixer row 18"); it does not itself assert that any mixer row exists (not changed).
+
+**`MELTP` (the pause around screen melts).** Read, then run. The melt runs inside `D_Display`'s wipe loop (d_main.c:329-344): no `G_Ticker`, no input
+read. A key pressed in it waits for `NetUpdate`'s event pass (d_net.c:402-403), and `G_BuildTiccmd` puts the pause in the next command (g_game.c:426-428), so
+**the original has no command during a melt: the pause is in the first tic after it and that tic runs paused.** The pause picture is drawn before the wipe's end screen is copied (d_main.c:303-313, 327), so the
+melt after a paused tic ends on the picture. A level load clears the pause (g_game.c:494). Item `MELTP` (`0x81` on tics 126, 128, 138, 140, 144; cut at 175):
+genuine paused tics 126-127, 138 and 140-143, three melts of 115 steps, 127 captures. The Rust frames test (every frame, music call, sound row, mixer buffer and the 115 melt steps), the session test (every G, C, I, J row, 127
+captures) and the `doom-play` test (Pause pressed and released in the start melt is held, no tic runs in the melt, the first command after it is `0x81` and that tic is paused) all pass. They can fail:
+a melt-step digit, the pause picture skipped when a wipe starts, a paused bit of the session file and a planted app fault that drops the key each fail. The Rust port equals the
+genuine engine: no fix was needed. Found, not fixed at that step: the session test's list lacked `REBORNP` (added at R5, [§17](#17-the-independent-read-eight-findings)).
+The intermission's last tic is also a fire press in the tally (Q-wi_stuff-1480). Run under wire 29 only; older wires: not run.
+
+**`REBORNP`** (`0x81` on a reborn's load tic): a paused load tic is reachable because `G_Ticker` runs the reborn, then `G_DoLoadLevel` (clears the pause),
+and only then reads the command (g_game.c:612-614, 494, 698-708); `P_SetupLevel` sets `viewz` to 1 before the player is respawned and `G_PlayerReborn` clears it (p_setup.c:604, g_game.c:815),
+so the paused frame is drawn from `viewz` 0. 187 captures, 4 paused tics, equal.
+
+## 17. The independent read: eight findings
+
+A fresh reviewer read the diff at `c5c56685` against the C and ran nothing. The owner ruled that no finding counts as confirmed or dismissed until a run shows it; the
+order was R2, R1 with R3, R4 with R5, R7, and R6 a note unless a run shows an effect. **Five findings changed code or tests (R1, R2, R3, R4, R5); R6 shows no effect, R7 changed a
+comment, R8 is a known placeholder.** The reviewer also checked correct: the corpse countdown and respawn order and random numbers, the Nightmare sites, the fast table (N4), the demo header and
+commands, the pause order in `G_Ticker`, the pause picture's place, wires 1 to 28 untouched, the new readers, the Python encoders' independence and that the planted faults can fail.
+The fold count of findings into the diff: not in the fact sheet, not stated here.
+
+| Finding | What the read said | Confirmed or dismissed by | What was done |
+| --- | --- | --- | --- |
+| R2 (minor) | The paused load frame after a dead player's exit uses `viewz` 1 where the original, which reborns the player there, uses 0 (g_game.c:479-480, p_setup.c:604, g_game.c:815) | **Confirmed by a run:** item `DEADEXIT` (4 paused frames, 133 captures); with the old rule forced the test failed at session tic 148 with the frame of the altered engine `viewz1` | `viewz` 1 only when the new level's start is not a reborn (`world_done_viewz_one`, `begin_next_level_carried`); the planted fault reproduces the variant's digest at 148; quirk row Q-p_setup-604 |
+| R1 (major, disclosure) | A barrel whose first wounder respawned is refused up front, though the original reads it only in `P_DamageMobj` of a victim in range (p_inter.c:806-809); COMPATIBILITY called this unreachable | **Confirmed by a run** (before the fix, `BARRELF` was refused at 961 and `BARRELN` at 961, where the genuine engine read freed memory at 961 / read nothing) | The up-front refusal stays on wires 21 to 28 only; wire 29 reproduces a pending read, plays on past a barrel with nothing in range and refuses the read of the freed block with `FreedRead`. Items `BARRELP`, `BARRELF`, `BARRELN` |
+| R3 (minor) | A flying missile whose owner's corpse respawned is refused at the preflight, before any read (p_map.c:299-305, 324) | **Confirmed by a run** (before the fix: `MISS0` refused at 769 where the genuine engine never reads; `MISSF` refused at 769 where it reads at 804) | The owner is read lazily at contact; items `MISS0`, `MISSP`, `MISSF`. Wires 1 to 28 keep the preflight refusal |
+| R4 (note) | The `DSIM` 45 reader accepts kill credit above the total whatever the skill | **Confirmed by reading and a test run** (every capture admitted it) | Credit above the total is accepted only with skill 4 or the `-respawn` option set; `dsim45_kills_pass_the_total_only_with_respawning` on real captures of an M6b map (accepts at skill 4, and with `-respawn` at skill 3 with and without `-fast`; refuses at skill 3 without it, and at skill 2 with `-fast`) |
+| R5 (evidence gap) | The session test compared `DSIM` 45 digests only on the first level; paused load tics are on later levels | **Confirmed by reading** the test; the new comparison then **caught a gap**: `LOADP`'s paused load tic differed in `events.sounds` only (the projection skipped the S row of the load tic) | An encoder rule (D51) and later-level goldens, 252 captures equal ([§5](#5-the-session-frames-sound-and-mixer)); `REBORNP` and `DEADEXIT` joined the session list. `PAUSEWI`'s later level is not projected |
+| R6 (note) | `head_owed` stays set after a restore at session tic 0 while paused | **Run, no effect:** `PAUSE0` restored after each paused tic 1 to 20 and at 21 and 22, 20 tics each beside the unbroken session: reports, frames, music calls, snapshots and the `DSES` 4 bytes equal | Nothing changed in code; a test `a_first_level_restored_paused_before_its_tic_0_continues_as_the_unbroken_one` |
+| R7 (note) | The `escaped_missile` comment against the 16,384 cap | Read | Comment only: the bound subtracts the smaller of the sight margin and 16,384, and the `int` argument covers margins up to 16,384 |
+| R8 (note) | Placeholders pending | Known | The `REAL-MAP-FIGURES-PENDING` and `MUTATION-PENDING` markers stay until the runs finish |
+
+**What R1 and R3 changed in what the port promises.** The genuine engine reads whatever the freed block holds: `Z_Free` writes only the block's header, so the corpse's bytes stay until a later
+`Z_Malloc` reuses the block (0 reuses in all eight freed-read runs). The outcome therefore depends on memory outside the defined state, which is why the port refuses. Scrub builds that fill the
+corpse's bytes after its links when it is freed: filled with 0x00, `BARRELF` and `MISSF` dump the same as the strict build; filled with 0xff, both die of SIGSEGV (exit -11) at the read. The genuine facts of
+the six items (strict, overflow, address and observer identical): `BARRELP`, the explosion at 960, after the removal, reads a pending source twice (the runner then ends at the M5b `AttackerRemoved` witness: D52), `BARRELF` two freed
+reads, `BARRELN` none; `MISS0` none, `MISSP` one pending missile read and one source read, `MISSF` one freed read of each at 804. The planted `sweep` fault (every reference to the corpse cleared at its removal) first differs at 961 for the barrels and 769 for the
+missiles; the port with the fault equals each variant's digest where it is not refused first. **Limits:** the first `sweep` made the port's reader refuse a barrel with a threshold and no target (D53, fixed); for `MISS0` and `MISSF` the port with the fault is refused at 769 (a flying missile with no owner), so it is not compared there; and the genuine engine with a real `Z_Malloc` reuse was never observed.
+
+**What `doom-play` shows and saves** (run: test `wire29_tests::a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved`, `MISSF` and `BARRELF` played through the app by vanilla keys): the session ends as refused at tic 804 or 961, the end screen's text is "simulation: FreedRead. The original would read freed memory here, through a pointer to a
+monster's corpse removed when the monster respawned. What it reads depends on the memory allocator, so the session stops here instead of guessing.", the session summary contains it, and the demo saves, parses as version 4 and holds every command before the refused tic (804 and 961 commands). Without the new text the test fails ("simulation: FreedRead").
+
+How many of the 305 final replays and the six hand recordings end at this refusal: REAL-MAP-FIGURES-PENDING ([§8](#8-real-maps-and-the-session)).
+
+## 18. Decisions D50 to D53
+
+**D50 (not this PR; nothing built).** A labelled non-vanilla option that plays on past a freed read. The building agent gave no recommendation; the options seen in the runs:
+(a) clear every reference to the corpse when it is removed (the `sweep` fault): differs from the original from the respawn tic on, even where nothing ever reads the pointer (`BARRELN` and `MISS0` differ at 961 and 769 in
+the target and threshold fields); (b) read a freed pointer as NULL at the read only (no source, no owner): differs only from the read on (no retarget, a kill credited to the first player for a counted victim, no species test);
+(c) read the corpse's last record, what the genuine engine does while nothing reuses the block (the 0x00 scrub equals it, 0 reuses in all 8 freed-read runs): differs after a reuse, which the port cannot see without modelling the zone (D13 (b));
+(d) refuse as now (the vanilla-only default). The owner decides, in a later milestone.
+**D49** (cheat strings under modern bindings) is likewise for the future cheats milestone, nothing built. **D40 (a) and D44 (b) are owner-ruled** (rows in [§2](#2-decisions)); D51 to D53 are the building agent's, changeable before merge.
+
+## 19. Nonzero exits of these steps
+
+Each is resolved unless said. `wire29_mixer.py --check` exited 1 on `REBORNP` (§16, fixed). Authoring exits: `wire29_pause.py --only DEADEXIT` exit 1 (a declared address-build stop that did not occur: the build ran clean, the declaration was removed); `wire29_pause.py --only LOADP,REBORNP`
+exit 1 ("the state build differs from strict": a missing directory, fixed); `cargo fmt --all --check` exit 1 three times on my own new tests (formatted); clippy exit 101 once (`filter_map_bool_then` in the `MELTP` session test, fixed);
+`pkill -f` exit 144 twice, which killed my own shell and a background search (not repeated); the first documents-step GIF run (`no glyph for ;`, fixed); `wire28_witness_timing` exit 1 in base and head (its usage message). Expected failures, each reverted: the can-fail runs of the
+`WRAP`, `STEPREAD`, `REBORNP`, `MELTP`, R1/R3, R2, R4 and `doom-play` tests, and the R2 and R1/R3 confirmations before their fixes. Last gates at `1861257f`: `cargo test --workspace` (debug) 180 result lines, 2,334 passed, 0 failed, 17 ignored; the release
+tests of `doom-sim` and `doom-types` 1,487 passed (91 lines), of `doom-game`, `doom-render`, `doom-sound` and `doom-play` 814 passed (77 lines); `--check` of `wire29_goldens` (19 items, 9,318 captures, 33 variant rows), `wire29_stale` (38 files, 10 items, 14,104 captures),
+`wire29_pause` (61 files, 13 pinned streams, 6 new items), `wire29_mixer`, `wire29_border` (5 files) and `wire29_wrap` (5 files) all exit 0; `bench.sh` exit 0 within 3 % (largest +2.13 %), run beside a mutation run, so only instruction counts. Not run: fuzz builds, MSRV and Windows and macOS CI, rustdoc at that head.
+
