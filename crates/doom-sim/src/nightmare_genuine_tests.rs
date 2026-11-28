@@ -528,8 +528,14 @@ fn an_overflowed_step_sum_read_again_by_the_walk_is_followed() {
     let defined: usize = fact("O", "defined_captures").parse().expect("defined");
     let live = fact("O", "step_overflows");
     let reads = fact("O", "step_reads");
-    assert!(live.split(';').any(|o| o.starts_with("868 ") && o.ends_with(" 0")));
-    assert!(reads.split(';').any(|r| r.starts_with("868 ")), "a read again");
+    assert!(
+        live.split(';')
+            .any(|o| o.starts_with("868 ") && o.ends_with(" 0"))
+    );
+    assert!(
+        reads.split(';').any(|r| r.starts_with("868 ")),
+        "a read again"
+    );
     assert!(defined < captures);
     assert_eq!(fact("V", "saturate"), "none,-", "not observable");
     assert_eq!((p.difference, p.refusal), (None, None));
