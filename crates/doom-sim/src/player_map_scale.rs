@@ -929,11 +929,13 @@ impl Simulation {
     /// 520-526; off the map a thing is in no block list, which the spatial walk's
     /// clamped cell range reproduces) and `R_PointInSubsector` answers for any
     /// point. Admitted while each coordinate stays within `32,767 - 128` units
-    /// less the sight margin (the largest vertex coordinate): the differences the
+    /// less the sight margin (the largest vertex coordinate) capped at 16,384, so
+    /// never below 16,255 units. With a margin up to 16,384 the differences the
     /// BSP walk (r_main.c `R_PointOnSide`) and the blockmap reads form, and the
-    /// move itself (at most 30 units), then stay inside `int`. Beyond it the C's
-    /// arithmetic overflows (undefined; `-fwrapv` wraps), and the actor is
-    /// refused as before.
+    /// move itself (at most 30 units), then stay inside `int`; a larger margin
+    /// keeps the 16,255 bound, which that argument does not cover. Beyond the
+    /// bound the actor is refused as before (the C's arithmetic would overflow:
+    /// undefined; `-fwrapv` wraps).
     pub(crate) fn escaped_missile(&self, a: &Actor) -> bool {
         self.world.parameters.is_some()
             && a.life
