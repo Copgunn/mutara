@@ -113,7 +113,7 @@ streams); the observer prints what the plain build cannot. The address builds ar
 
 | Item | What it shows | Result |
 | --- | --- | --- |
-| `STALE` | The player killed by an imp's fireball after the imp was killed and respawned: `attacker` names the freed corpse ([§6](#6-the-stale-pointer-after-a-respawn)) | 1,411 captures equal (0 to 1410, the read while the corpse is pending included); refused at session tic 1410 with `FreedRead`, state kept |
+| `STALE` | The player killed by an imp's fireball; the imp, killed by a barrel's blast, respawns later, so `attacker` names the freed corpse ([§6](#6-the-stale-pointer-after-a-respawn)) | 1,411 captures equal (0 to 1410, the read while the corpse is pending included); refused at session tic 1410 with `FreedRead`, state kept |
 | `STALE2` | A sleeping imp whose `target` is a zombieman's freed corpse is woken by sourceless damage and `A_Chase` reads the target | 3,227 captures equal (0 to 3226, the sleep on a freed target included); refused at session tic 3226 with `FreedRead` |
 | `BOSS2` | Two Barons telefragged, respawned (leveltimes 1344, 1920, 2432) and telefragged again; `A_BossDeath`'s tag-666 call at 146, 1494 and 2343 returning 1, 0, 1 | Equal at all 2,701 captures, no fix; mutation (skip a 0-unit floor) fails at capture 2344 |
 | `FASTOUT` | A fast fireball leaves the map ([§7](#7-finding-f1-a-fast-fireball-through-a-maps-outer-wall)) | 141 captures equal; with the follow rule forced off, refused at session tic 55 |
