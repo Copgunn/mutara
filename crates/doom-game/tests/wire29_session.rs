@@ -45,12 +45,15 @@ const SHARED: [&str; 5] = [
     "tests/reference/m6a_wads/m6a_music.wad",
     "tests/reference/m6b_wads/m6b_gfx.wad",
 ];
-/// The 19 M6b items (`tools/reference/m6b_wad.py` ITEMS) and the two new ones.
-const ITEMS: [&str; 22] = [
+/// The 19 M6b items (`tools/reference/m6b_wad.py` ITEMS) and the new ones.
+const ITEMS: [&str; 24] = [
     "AMMO4", "BITS4", "BITS3", "CLAMP5", "REACT4", "REACT3", "REACT3F", "FAST4", "FAST3", "FAST3F",
     "RESP4", "RESP3", "RESP3R", "BLOCK4", "GIB4", "PAUSE", "PAUSE0", "PAUSEWI", "PAUSEFIN",
-    "DEADSPEC", "LOADP", "TURBOP",
+    "DEADSPEC", "LOADP", "TURBOP", "REBORNP", "DEADEXIT",
 ];
+/// The items with later levels whose DSIM45 captures `tools/reference/wire29_pause.py` projects
+/// (`wire29_session/<item>_levels.txt`, finding R5).
+const LATER: [&str; 5] = ["DEADSPEC", "LOADP", "REBORNP", "MELTP", "DEADEXIT"];
 
 fn read(path: &str) -> String {
     std::fs::read_to_string(m6a::root(&format!("tests/reference/{path}")))
@@ -60,7 +63,10 @@ fn read(path: &str) -> String {
 
 /// Where an item's files are: the frozen M6b goldens, or `wire29_session/`.
 fn new_item(name: &str) -> bool {
-    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP" | "MELTP")
+    matches!(
+        name,
+        "DEADSPEC" | "LOADP" | "TURBOP" | "MELTP" | "REBORNP" | "DEADEXIT"
+    )
 }
 
 fn lmp_path(name: &str) -> String {
@@ -84,9 +90,11 @@ fn stream(name: &str) -> Rows {
 fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
     let episode = matches!(
         name,
-        "PAUSEWI" | "PAUSEFIN" | "DEADSPEC" | "LOADP" | "MELTP"
+        "PAUSEWI" | "PAUSEFIN" | "DEADSPEC" | "LOADP" | "MELTP" | "REBORNP"
     );
-    let first = if episode {
+    let first = if name == "DEADEXIT" {
+        "tests/reference/m6a_wads/rbx.wad"
+    } else if episode {
         "tests/reference/m6a_wads/episode.wad"
     } else {
         "tests/reference/m6b_wads/m6b.wad"
@@ -132,6 +140,22 @@ fn state_golden(name: &str) -> (Vec<String>, Vec<(String, usize, String)>) {
         }
     }
     (caps, variants)
+}
+
+/// The later levels' DSIM45 digests by session tic (`<item>_levels.txt`; empty without one).
+fn later_golden(name: &str) -> BTreeMap<i64, String> {
+    let path = format!("wire29_session/{}_levels.txt", name.to_lowercase());
+    if !m6a::root(&format!("tests/reference/{path}")).exists() {
+        return BTreeMap::new();
+    }
+    read(&path)
+        .lines()
+        .filter(|l| l.starts_with("D,"))
+        .map(|l| {
+            let f: Vec<&str> = l.split(',').collect();
+            (f[2].parse().unwrap(), f[3].to_owned())
+        })
+        .collect()
 }
 
 /// `m6a_state.txt`'s state digest over DSIM45 (as doom-sim's `nightmare_genuine_tests`).
@@ -380,12 +404,16 @@ struct Drive {
     message_on: BTreeMap<i64, bool>,
     kills: i32,
     refusal: Option<String>,
+    /// The first later-level session tic whose DSIM45 digest differs, and the captures compared.
+    later: Option<(i64, String)>,
+    later_captures: usize,
 }
 
 fn drive(name: &str, fault: Option<PlantedFault>) -> Drive {
     let (item, parameters, cmds) = item(name);
     let g = stream(name);
     let (want, _) = state_golden(name);
+    let later = later_golden(name);
     let settings = SessionSettings {
         map: item.map,
         skill: item.skill,
@@ -430,6 +458,16 @@ fn drive(name: &str, fault: Option<PlantedFault>) -> Drive {
         }
         if first_level && caps.len() < want.len() {
             caps.push(digest(&s.level().snapshot()));
+        }
+        if !first_level && level {
+            let got = digest(&s.level().snapshot());
+            match later.get(&tic) {
+                Some(w) if *w == got => d.later_captures += 1,
+                w => {
+                    d.later
+                        .get_or_insert((tic, format!("{got}, genuine {w:?}")));
+                }
+            }
         }
         while s.melt_in_progress() {
             s.melt_step(&mut unseen).expect("a melt step");
@@ -485,6 +523,24 @@ fn wire_29_session_equals_every_genuine_session_stream() {
         "wire 29 session: {} items, {tics} tics, {captures} captures",
         ITEMS.len()
     );
+}
+
+/// Finding R5: every session tic of the later levels of DEADSPEC, LOADP, REBORNP, MELTP and
+/// DEADEXIT (a reborn reload, carried starts, paused load tics, a reborn after a dead player's exit)
+/// equals the independent encoder's DSIM45 capture of the genuine engine's state there.
+#[test]
+fn later_levels_equal_the_genuine_dsim45_captures() {
+    let mut total = 0;
+    for name in LATER {
+        let d = drive(name, None);
+        let want = later_golden(name).len();
+        assert!(want > 0, "{name}: a later level");
+        assert_eq!((&d.row, &d.refusal), (&None, &None), "{name}");
+        assert_eq!((&d.later, d.later_captures), (&None, want), "{name}");
+        eprintln!("{name}: {want} later-level captures equal");
+        total += want;
+    }
+    eprintln!("later levels: {} items, {total} captures", LATER.len());
 }
 
 /// TURBOP: the turbo message assigned on paused tic 256 (and not on 160) reaches the HUD, which
