@@ -616,7 +616,8 @@ fn pause_commands_around_the_screen_melts_follow_the_genuine_session() {
     assert_eq!((d.tics, d.captures), (item("MELTP").2.len(), want.len()));
     let g = stream("MELTP");
     let paused: Vec<i64> = (g.of("G").iter())
-        .filter_map(|r| (int(r, "paused") == 1).then(|| int(r, "tic")))
+        .filter(|r| int(r, "paused") == 1)
+        .map(|r| int(r, "tic"))
         .collect();
     assert_eq!(paused, [126, 127, 138, 140, 141, 142, 143]);
     assert_eq!(d.paused_tics, paused.len());
