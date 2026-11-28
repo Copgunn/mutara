@@ -592,6 +592,10 @@ pub enum PlantedFault {
     /// The self-test of `tools/reference/m6b_goldens.py`: the pause picture one row lower
     /// (d_main.c:309; doom-render's planted pause fault).
     PausePictureLower,
+    /// The altered genuine engine `viewz1` of `tools/reference/wire29_pause.py`: a level entered
+    /// from the intermission drawn from viewz 1 for a reborn player too (g_game.c:815 not
+    /// clearing p_setup.c:604's value; doom-render's planted viewz fault).
+    WorldDoneViewzOne,
 }
 
 /// Which domain judges a command, by the part of `G_Ticker` that reads it (module
@@ -878,6 +882,9 @@ impl Session {
         self.plant_sound_fault(fault);
         if fault == PlantedFault::PausePictureLower {
             self.display.plant_pause_fault();
+        }
+        if fault == PlantedFault::WorldDoneViewzOne {
+            self.display.plant_viewz_fault();
         }
         self.fault = Some(fault);
     }

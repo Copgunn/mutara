@@ -58,6 +58,9 @@ pub(crate) struct Pause {
     picture: Option<Patch>,
     /// The planted fault of the evidence self-test: the picture one row lower.
     lower: bool,
+    /// The planted fault of finding R2's evidence: every level entered from the intermission
+    /// first drawn from viewz 1, a reborn player's included.
+    viewz_one: bool,
 }
 
 impl Pause {
@@ -110,6 +113,7 @@ impl Display {
                 level_paused: 0,
                 picture,
                 lower: false,
+                viewz_one: false,
             });
         }
         Ok(d)
@@ -183,6 +187,28 @@ impl Display {
         }
     }
 
+    /// Plants finding R2's fault: a level entered from the intermission is first drawn from
+    /// viewz 1 even for a reborn player (a display holding it cannot be saved). Ignored by a
+    /// display that is not a pause display.
+    #[doc(hidden)]
+    pub fn plant_viewz_fault(&mut self) {
+        if let Some(p) = self.session.as_deref_mut().and_then(|s| s.pause.as_mut()) {
+            p.viewz_one = true;
+        }
+    }
+
+    /// Whether a level entered from the intermission (`G_DoWorldDone`) on a pause display is
+    /// first drawn from viewz 1: `P_SetupLevel` sets it (p_setup.c:604) and `P_SpawnPlayer` clears
+    /// it only for a reborn player (`G_PlayerReborn`'s memset, p_mobj.c:659-660, g_game.c:815),
+    /// as a player dead at the exit is (`G_DoLoadLevel`, g_game.c:479-480). That view is drawn
+    /// before tic 0's `P_CalcHeight` when the load tic is paused (wire 29). False on a display
+    /// that is not a pause display.
+    pub(crate) fn world_done_viewz_one(&self, sim: &Simulation) -> bool {
+        self.pause_part().is_some_and(|p| {
+            p.viewz_one || sim.level_start_kind() != Some(doom_sim::StartKind::Reborn)
+        })
+    }
+
     /// The saveable state of a pause display (`DDSP` version 5); None for another display.
     pub fn session_state_v5(&self) -> Option<SessionDisplayStateV5> {
         self.session_state_v5_checked().ok()
@@ -193,7 +219,7 @@ impl Display {
         let p = self
             .pause_part()
             .ok_or(SessionStateRefusal::NotPauseDisplay)?;
-        if p.lower {
+        if p.lower || p.viewz_one {
             return Err(SessionStateRefusal::PlantedFault);
         }
         let display = self.session_state_v4_any()?;

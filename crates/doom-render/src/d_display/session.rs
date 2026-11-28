@@ -469,10 +469,10 @@ impl Display {
         start.fuzzpos = carried.fuzzpos;
         start.wall_steps = carried.wall_steps;
         start.view.deltaviewheight = deltaviewheight;
-        if change == LevelChange::WorldDone && self.pause_part().is_some() {
-            // `P_SetupLevel` sets `viewz = 1` (p_setup.c:604) and `P_SpawnPlayer` clears it only for
-            // a reborn player (`G_PlayerReborn`, p_mobj.c:659-660): a carried player's first view,
-            // drawn before tic 0's `P_CalcHeight` when the load tic is paused (wire 29), is from 1.
+        if change == LevelChange::WorldDone && self.world_done_viewz_one(sim) {
+            // A carried player's first view, drawn before tic 0's `P_CalcHeight` when the load
+            // tic is paused (wire 29), is from `P_SetupLevel`'s 1 (p_setup.c:604); a player dead at
+            // the exit is reborn and keeps the 0 of the reborn path (g_game.c:479-480, 815).
             start.view.viewz = 1;
         }
         renderer.restore(start).expect("the level's own start");
