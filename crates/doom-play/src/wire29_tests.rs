@@ -216,6 +216,101 @@ fn the_pause_key_records_the_original_command_and_replays() {
     assert!(app.recorder().is_empty());
 }
 
+/// A session stopped at a read of freed memory (findings R1 and R3): MISSF and BARRELF
+/// (`tools/reference/wire29_stale.py`, skill 3 with `--respawn`) played through the app by the
+/// vanilla keys that build their commands (arrows, `.`, right Ctrl; g_game.c:368-445). Each ends refused at the
+/// genuine engine's freed read with `FreedRead` named in plain words on the end screen, and the
+/// demo saved on the ending holds every command before the refused tic and reads back by the wire 29
+/// reader.
+#[test]
+fn a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved() {
+    use doom_game::input::keys::{KEY_DOWNARROW, KEY_RCTRL};
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/reference");
+    let respawn = GameParameters {
+        respawn: true,
+        fast: false,
+    };
+    for (name, wad, freed_read) in [("MISSF", "missf.wad", 804), ("BARRELF", "barrel.wad", 961)] {
+        let lmp = std::fs::read(dir.join(format!("wire29_stale/{name}.lmp"))).expect("demo");
+        let (demo, parameters) = SessionDemo::parse_v4(&lmp).expect("the wire 29 reader");
+        assert_eq!((demo.skill, parameters), (3, respawn));
+        let wad = format!("wire29_stale/{wad}");
+        let files: Vec<Vec<u8>> = [wad.as_str()]
+            .into_iter()
+            .chain(SHARED)
+            .map(|w| std::fs::read(dir.join(w)).expect("WAD"))
+            .collect();
+        let refs: Vec<&[u8]> = files.iter().map(Vec::as_slice).collect();
+        let data = GameData::load_wire29_session(&refs, ModeSetting::Probe, 1, 3, respawn)
+            .expect("skill 3 with -respawn");
+        let mut host = FileHost::default();
+        let cfg = SessionConfig {
+            preset: Preset::Vanilla,
+            ..SessionConfig::default()
+        };
+        let mut app = App::new(data, cfg, &mut host);
+        // one update a millisecond: at most one tic each (a tic is 1/35 s), the melts by time
+        let mut now = 0;
+        let mut held = [false; 4];
+        while let Some(c) = demo.commands.get(app.tic() as usize) {
+            if app.mode() != &Mode::Playing {
+                break;
+            }
+            let want = [c.forward > 0, c.forward < 0, c.side > 0, c.buttons & 1 != 0];
+            for (i, code) in [KEY_UPARROW, KEY_DOWNARROW, b'.', KEY_RCTRL]
+                .into_iter()
+                .enumerate()
+            {
+                if held[i] != want[i] {
+                    app.key(code, want[i], &mut host);
+                    held[i] = want[i];
+                }
+            }
+            let t = app.tic();
+            while app.tic() == t && app.mode() == &Mode::Playing {
+                now += 1000;
+                assert!(now < 100_000_000, "{name}: stalled at {t}");
+                app.update(now, &mut host);
+            }
+        }
+        let Mode::Ended(Ending::Refused { tic, witness }) = app.mode().clone() else {
+            panic!("{name}: not refused: {:?}", app.mode());
+        };
+        let text = witness.to_string();
+        assert_eq!(tic, freed_read, "{name}: {text}");
+        assert!(
+            text.starts_with("simulation: FreedRead. The original would read freed memory"),
+            "{text}"
+        );
+        let summary = app.session_summary().expect("a session");
+        assert!(summary.contains(&format!("refused at session tic {tic}: {text}")));
+        let (file, bytes) = host
+            .saved
+            .last()
+            .expect("the demo saved at the ending")
+            .clone();
+        let (saved, p) = SessionDemo::parse_v4(&bytes).expect("the wire 29 reader");
+        assert_eq!((saved.skill, p), (3, respawn), "{file}");
+        assert_eq!(
+            saved.commands[..],
+            demo.commands[..tic as usize],
+            "{name}: every command before the refused tic"
+        );
+        eprintln!(
+            "{name}: refused at {tic}, {file}: {} commands",
+            saved.commands.len()
+        );
+    }
+}
+
+const SHARED: [&str; 5] = [
+    "m5b_gfx.wad",
+    "m5c_sfx.wad",
+    "m6a_wads/m6a_gfx.wad",
+    "m6a_wads/m6a_music.wad",
+    "m6b_wads/m6b_gfx.wad",
+];
+
 impl Mute for FileHost {
     fn toggle_mute(&mut self) {}
 }
