@@ -581,6 +581,62 @@ fn the_roster_of_placed_monsters_is_bounded_by_the_maps_count() {
     );
 }
 
+/// A Nightmare level at tic 0 whose first `MF_COUNTKILL` actor is made a corpse (`tics`
+/// -1, as after its death state) with `movecount` and the spawn angle `angle`, gameplay
+/// RNG index `rng`; returns it after one tic, with the corpse's id.
+fn corpse_tic(movecount: i32, angle: i16, rng: u8) -> (Simulation, ActorId) {
+    let mut s = level_at(2, Skill::Nightmare, NONE, 0);
+    let id = s
+        .actor_order()
+        .find(|i| {
+            let l = s.actor(*i).and_then(|a| a.life);
+            l.is_some_and(|l| l.flags & crate::world_pickups::MF_COUNTKILL != 0)
+        })
+        .expect("a monster");
+    let life = s
+        .actors
+        .get_mut(id)
+        .and_then(|a| a.life.as_mut())
+        .expect("typed");
+    life.tics = -1;
+    life.movecount = movecount;
+    life.spawnpoint.as_mut().expect("placed").angle = angle;
+    s.rng = DoomRng::from_indices(rng, 0);
+    idle(&mut s, 1);
+    (s, id)
+}
+
+/// Pins the 12-second wait of `corpse_think` (p_mobj.c:459, the rule in its doc): a
+/// corpse draws its gate on the tic its `movecount` reaches 12 * 35 = 420 and not before.
+/// Seen from outside as the gameplay RNG: a tic with the draw and one without end at
+/// different indexes. Below the public API: `corpse_think` is `pub(crate)` and a run to
+/// the exact tic would take 420 tics of chase the genuine items do not stop at.
+#[test]
+fn a_corpse_draws_its_gate_from_the_tic_its_count_reaches_420() {
+    let index = |movecount| corpse_tic(movecount, 0, 0).0.rng().indices()[0];
+    assert_eq!(index(417), index(418), "counts 418 and 419 draw nothing");
+    assert_ne!(index(419), index(418), "count 420 draws the gate");
+}
+
+/// Pins the angle of a respawned monster, `ANG45 * (mthing->angle / 45)` (p_mobj.c:400,
+/// the comment in `respawn`): spawn angle 100 gives 2 * ANG45, whatever the gate's RNG
+/// start, found by trying every index until a gate of 4 or less respawns the corpse (three spawns
+/// join the order at once; the corpse leaves it with the removals after the tic).
+#[test]
+fn a_respawned_monster_faces_ang45_times_the_spawn_angle_over_45() {
+    let before = level_at(2, Skill::Nightmare, NONE, 0).actor_order().count();
+    for rng in 0..=255u8 {
+        let (s, _) = corpse_tic(419, 100, rng);
+        if s.actor_order().count() != before + 3 {
+            continue;
+        }
+        let new = s.actor_order().last().expect("the respawned monster");
+        assert_eq!(s.actor(new).expect("actor").spec.angle, 2 * 0x2000_0000);
+        return;
+    }
+    panic!("no gate index respawned the corpse");
+}
+
 /// Pins `toggles_pause` and `save_command` over all 256 button bytes, by the written rule
 /// of their docs (g_game.c:698-716, d_event.h:78-92): `BT_SPECIAL` (0x80) set, and the low
 /// two bits 1 (pause) or 2 (save game). Below the public API: the two predicates are
