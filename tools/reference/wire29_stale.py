@@ -36,6 +36,25 @@ MAXMOVE/2, p_mobj.c:152) and flies outside the vertex rectangle until P_ZMovemen
 R_PointInSubsector gives there. The observer prints every blockmap cell the two iterators refuse by their bounds
 tests while a missile is moved and every thing P_SetThingPosition leaves out of the block lists.
 
+The items BARRELP, BARRELF and BARRELN (the same skill and byte; room5, one map, three demos): a barrel's `target` is an
+imp whose corpse respawns. The imp's fireball wounds barrel B, so B's `target` is the imp for good (p_inter.c:904-911,
+a barrel's threshold never decays); the player kills the imp with barrel X's explosion; the corpse respawns at leveltime
+960 and is freed at its turn in 961; the player's shots kill B, whose A_Explode passes the corpse as the source
+(p_enemy.c:1600). P_DamageMobj reads it for each victim (p_inter.c:806-809), here the player: BARRELP's explosion comes
+in the respawn tic after the removal (the block in use: defined), BARRELF's in 961 (freed), BARRELN's in 961 with the
+player walked out of range (nothing reads it). BARRELP and BARRELF end at the runner's declared witness AttackerRemoved
+(STOP).
+
+The items MISS0, MISSP and MISSF (the same skill and byte; room6, B moved): an imp's fireball flies down a long corridor
+while the imp's corpse respawns (768) and is freed (769). PIT_CheckThing reads the fireball's `target` only on contact
+(p_map.c:298-301) and P_DamageMobj then as the source: MISSP's fireball touches barrel B in the respawn tic, after the
+removal (defined); MISSF's in 804 (freed); MISS0's B stands off the line and the fireball explodes on the end wall,
+having read nothing.
+
+For BARREL* and MISS*, the planted fault `sweep` (SWEEP, a strict build with one exact-once change) gives a V row,
+and for an item with a freed read the scrub builds (scrub(), evidence only) fill the freed corpse's bytes with 0x00 and
+0xff: whether the run depends on what the freed block holds (O rows scrub00 and scrubff).
+
 Runs, as m6b_goldens.py runs its items (the M6b runner of tools/reference/m6b_build.py, imported read-only; the M5c
 recommended switches; ASAN_OPTIONS=detect_leaks=0: leak detection disabled, not LeakSanitizer coverage):
   strict, overflow, address   identical dumps, sound and session streams and a clean exit are required;
@@ -51,9 +70,12 @@ Output (written without --check; --check regenerates and compares, writing nothi
   tests/reference/wire29_stale/stale2.wad, STALE2.txt, STALE2.lmp   STALE2's
   tests/reference/wire29_stale/boss2.wad, BOSS2.txt, BOSS2.lmp      BOSS2's
   tests/reference/wire29_stale/fastout.wad, FASTOUT.txt, FASTOUT.lmp FASTOUT's
+  tests/reference/wire29_stale/barrel.wad, BARREL{P,F,N}.txt and .lmp the barrel items' map and demos
+  tests/reference/wire29_stale/miss{0,p,f}.wad, MISS{0,P,F}.txt and .lmp the missile items'
   tests/reference/wire29_stale/stale_state.txt, stale2_state.txt,
-      boss2_state.txt, fastout_state.txt                           DOOM-WIRE29-STALE-v1: the I row (as
-      wire29_state.txt's), a C row per capture (its state digest over DSIM45) and O rows (observed facts)
+      boss2_state.txt, fastout_state.txt, <item>_state.txt          DOOM-WIRE29-STALE-v1: the I row (as
+      wire29_state.txt's), a C row per capture (its state digest over DSIM45), O rows (observed facts) and, for
+      BARREL*/MISS*, the V row of `sweep`
 
     wire29_stale.py [--check] [--selftest] [--author] [--only ITEM[,ITEM]] [--work DIR] [--cc CC]
 """
@@ -168,6 +190,68 @@ def room4():
     return p
 
 
+def room5():
+    """BARRELP/BARRELF/BARRELN: an imp I on a pedestal 48 high (it cannot step down, p_map.c:470-472;
+    a stuck imp would never fire, p_enemy.c A_Chase's movecount test), a barrel B on a pedestal on the line from I to the player, and a barrel X on the
+    floor beside I. The player's first shot hits X (no kill: 5 to 15 of its 20) and its noise wakes I; I's fireball
+    hits B, whose `target` becomes I (p_inter.c:904-911; B's threshold never decays). The next shots kill X, whose
+    explosion kills I (100 damage at distance 28). I's corpse respawns and is freed; then the player shoots B, whose
+    explosion passes I's corpse as the source (A_Explode, p_enemy.c:1600). P_DamageMobj reads the source only for a
+    victim (p_inter.c:806-809), so the player's distance from B decides whether anything reads it."""
+    p = W.Room('barrel', wall='M5WALLA')
+    p.sector('HALL', [(-320, -96, 256, 64)], light=192, fpic='M5FLAT1', cpic='M5FLAT2', ceil=176)
+    i = p.sector('IPED', [(128, -80, 224, -16)], floor=48, ceil=176, light=192, fpic='M5FLAT3', cpic='M5FLAT2')
+    x = p.sector('XPED', [(128, -16, 224, 32)], floor=48, ceil=176, light=192, fpic='M5FLAT3', cpic='M5FLAT2')
+    p.style(i, x, flags=ML_BLOCKMONSTERS)                 # I stays south of the player's line to X
+    p.sector('BPED', [(-16, -32, 16, 0)], floor=48, ceil=176, light=192, fpic='M5FLAT3', cpic='M5FLAT2')
+    p.thing(*BARREL_PLAYER, 0, PLAYER)
+    p.thing(160, -48, 180, IMP, ALL)
+    p.thing(192, 16, 0, BARREL, ALL)                      # X
+    p.thing(0, -10, 0, BARREL, ALL)                       # B
+    return p
+
+
+def room6(b):
+    """MISS0/MISSP/MISSF: a corridor CORRIDOR_EAST long. An imp I in a box of ML_BLOCKMONSTERS lines at its west end
+    (p_map.c:225-226; 48 high, so only its east and west steps succeed and its y stays the player's) fires along the corridor at the player, at its height (momz 0,
+    p_mobj.c:888-891); the player steps aside and the fireball flies on east for hundreds of tics. A barrel X beside I,
+    shot by the player, kills I. I's corpse respawns and is freed while the fireball flies. A barrel B stands at `b`:
+    on the fireball's line, PIT_CheckThing reads the fireball's `target` on contact (p_map.c:298-301) and P_DamageMobj
+    its source (p_inter.c:806-809); off the line, nothing reads it before the fireball explodes on the end wall."""
+    p = W.Room('miss', wall='M5WALLA')
+    c = p.sector('CORR', [(-320, -64, CORRIDOR_EAST, 64)], light=192, fpic='M5FLAT1', cpic='M5FLAT2', ceil=128)
+    box = p.sector('BOX', [(-256, -32, -192, 16)], light=192, fpic='M5FLAT3', cpic='M5FLAT2', ceil=128)
+    p.style(c, box, flags=ML_BLOCKMONSTERS)
+    p.thing(0, -8, 180, PLAYER)
+    p.thing(-224, -8, 0, IMP, ALL)
+    p.thing(-224, 40, 0, BARREL, ALL)                     # X
+    p.thing(*b, 0, BARREL, ALL)                           # B
+    return p
+
+
+ML_BLOCKMONSTERS = 2                                      # doomdata.h
+BARREL_PLAYER = (-112, 16)
+CORRIDOR_EAST = 7360
+MISS_B = {'MISS0': (6450, 48), 'MISSP': (6140, -8), 'MISSF': (6500, -8)}
+SHOTS = lambda n: ['cmd 1 0 0 0 ATTACK', 'idle 19'] * n
+
+
+def lines5(back, kill):
+    """BARREL*: the shot at X (its noise wakes I), the shot that kills X after I's fireball hit B (I dies at leveltime
+    381), twelve shots at the far wall (each moves P_Random's index by 5) and a strafe onto B's line (BARRELN then walks
+    back out of B's range), a shot at B (5 of its 11 left) and at `kill` the shot that kills it (10). The draws are set
+    so that the gate passes at leveltime 960 (p_mobj.c:464-467, rndtable index 83) and B's A_Explode comes at 960
+    (`kill` 943: in the respawn tic, after the removal, as B's thinker follows I's) or at 961 (944: I's block was freed
+    at the start of that tic's thinker pass, p_tick.c:107-113)."""
+    head = (['idle 25', 'cmd 1 0 0 0 ATTACK', 'idle 336', 'cmd 1 0 0 0 ATTACK', 'idle 30'] + SHOTS(12) + ['cmd 4 0 24 0 0']
+            + ['cmd 6 -25 0 0 0'] * back + ['idle 10', 'cmd 1 0 0 0 ATTACK'])
+    return head + [f'idle {kill - 648 - 6 * back}', 'cmd 1 0 0 0 ATTACK', 'idle 200']
+
+
+LINES5 = {'BARRELP': lines5(False, 943), 'BARRELF': lines5(False, 944), 'BARRELN': lines5(True, 944)}
+# MISS*: I fires at leveltime 134; the player strafes north out of the fireball's line, kills X with three shots (I dies
+# at 197) and shoots the west wall fourteen times, so the gate passes at 768; the fireball reaches the east wall at 901.
+LINES6 = ['idle 136', 'cmd 6 0 24 0 0'] + SHOTS(2) + ['cmd 1 0 0 0 ATTACK', 'idle 20'] + SHOTS(14) + ['idle 600']
 FAST_LEDGE, FAST_IMP = 640, 576
 LINES4 = ['idle 28', 'cmd 12 0 40 0 0', 'idle 100']
 X2, Y2 = (-232, -100), (-180, -80)
@@ -182,6 +266,16 @@ ITEMS = {
                     what='a fast fireball that passes through the map\'s outer wall and flies outside the map'),
     'BOSS2': dict(wad='boss2.wad', state='boss2_state.txt', room=room3, lines=LINES3, map=8,
                   what='two Barons on E1M8 killed, respawned and killed again: A_BossDeath more than once'),
+    **{n: dict(wad='barrel.wad', state=f'{n.lower()}_state.txt', room=room5, lines=LINES5[n], what=w, stop=n != 'BARRELN')
+       for n, w in (
+        ('BARRELP', 'a barrel whose target is a corpse explodes in the tic the corpse respawns, after the removal'),
+        ('BARRELF', 'a barrel whose target is a corpse explodes after the corpse is freed, the player in range'),
+        ('BARRELN', 'a barrel whose target is a corpse explodes after the corpse is freed, nothing in range'))},
+    **{n: dict(wad=f'{n.lower()}.wad', state=f'{n.lower()}_state.txt', room=lambda n=n: room6(MISS_B[n]), lines=LINES6,
+               what=w) for n, w in (
+        ('MISS0', 'a fireball whose shooter respawns and is freed flies on and touches nothing'),
+        ('MISSP', 'a fireball touches a barrel in the tic its shooter\'s corpse respawns, after the removal'),
+        ('MISSF', 'a fireball touches a barrel after its shooter\'s corpse is freed'))},
 }
 
 
@@ -258,7 +352,47 @@ OBSERVER = {
                   ('\t    junk.tag = 666;\n\t    EV_DoFloor (&junk, lowerFloorToLowest);\n',
                    '\t    junk.tag = 666;\n\t    { int w29_r = EV_DoFloor (&junk, lowerFloorToLowest); '
                    'fprintf (stderr, "W29,boss,%d,%d\\n", leveltime, w29_r); }\n')],
+    # BARREL*/MISS*: a missile's `target` read by PIT_CheckThing on contact (p_map.c:298-301) and a damage source read by
+    # P_DamageMobj (p_inter.c:806-809; every later read of `source` in the call follows that one)
+    'p_map.c': [('\tif (tmthing->target && (\n\t    tmthing->target->type == thing->type || ',
+                 '\t{ extern void w29_read (const char*, void*); if (tmthing->target) w29_read ("missile", tmthing->target); }\n'
+                 '\tif (tmthing->target && (\n\t    tmthing->target->type == thing->type || ')],
+    'p_inter.c': [('    player = target->player;\n    if (player && gameskill == sk_baby)',
+                   '    { extern void w29_read (const char*, void*); if (source) w29_read ("source", source); }\n'
+                   '    player = target->player;\n    if (player && gameskill == sk_baby)')],
 }
+def scrub(fill):
+    """The `scrub` builds (evidence only): the observer with Z_Free filling the bytes of a freed removed corpse with
+    `fill`, as a later Z_Malloc over the block could change them (Z_Free itself writes only memblock_t headers,
+    z_zone.c:122-171): whether the run depends on what the freed block holds. The thinker_t links stay: P_RunThinkers
+    reads `next` of the block it has just freed (p_tick.c:107-117)."""
+    return dict(OBSERVER, **{'z_zone.c': OBSERVER['z_zone.c'] + [(
+        '    // mark as free\n    block->user = NULL;\t\n',
+        '    { extern void* w29_lo[]; extern void* w29_hi[]; extern int w29_n; int i;\n'
+        '      for (i = 0; i < w29_n; i++) if (w29_lo[i] == ptr)\n'
+        f'        memset ((byte*)ptr + 3 * sizeof (void*), {fill}, (byte*)w29_hi[i] - (byte*)w29_lo[i] - 3 * sizeof (void*)); }}\n'
+        '    // mark as free\n    block->user = NULL;\t\n'), ('#include <stdio.h>\n', '#include <stdio.h>\n#include <string.h>\n')]})
+
+
+# The planted fault `sweep` (a strict build with one exact-once change, BARREL*/MISS*'s V rows): P_NightmareRespawn
+# clears every mobj `target` and player `attacker` naming the corpse before it removes it, so nothing is left pointing
+# at the block (one non-vanilla option for reading on past a freed read).
+SWEEP = {'p_mobj.c': [('    // remove the old monster,\n    P_RemoveMobj (mobj);\n',
+                       '    // remove the old monster,\n    { thinker_t* t; int i;\n'
+                       '      for (t = thinkercap.next; t != &thinkercap; t = t->next)\n'
+                       '        if (t->function.acp1 == (actionf_p1) P_MobjThinker && ((mobj_t*) t)->target == mobj)\n'
+                       '          ((mobj_t*) t)->target = NULL;\n'
+                       '      for (i = 0; i < MAXPLAYERS; i++) if (players[i].attacker == mobj) players[i].attacker = NULL; }\n'
+                       '    P_RemoveMobj (mobj);\n')]}
+# BARRELP and BARRELF end where the M5b runner's declared witness AttackerRemoved stops (m5b_build.py, decision S17): the
+# status bar would read the player's `attacker`, the corpse, after its removal (st_stuff.c:799-813); the run ends before
+# that tic is dumped (end=refused). Every build must stop there with the same dumps.
+STOP = 'witness AttackerRemoved'
+
+
+def stopped(r):
+    return not r['code'] and STOP in r['stdout'] and ' end=refused ' in r['stdout'] and not G.W27.UB.search(r['stderr']) \
+        and 'AddressSanitizer' not in r['stderr']
 
 
 def run(name, binary, out, wads, extra=()):
@@ -340,6 +474,14 @@ def facts(name, r, obs):
                     pillar_at_calls=[pillar(dumps[int(o[1]) + 1]) for o in boss], pillar_end=pillar(dumps[-1]),
                     killcount=p[-1]['killcount'], totalkills=dumps[-1].h['totalkills'], player_health_end=p[-1]['health'],
                     pending_reads=common['pending_reads'], freed_reads=common['freed_reads'], reuses=common['reuses'])
+    if name.startswith(('BARREL', 'MISS')):
+        # which reader read the corpse (PIT_CheckThing's `missile`, P_DamageMobj's `source`), the values a freed read
+        # found, and where the runner ended
+        f = dict(common, missile_reads=sum(o[1] == 'missile' for o in reads), source_reads=sum(o[1] == 'source' for o in reads),
+                 first_read=' '.join(reads[0][1:3]) if reads else '-', first_freed_values=f'health {freed[0][5]} flags '
+                 f'{freed[0][6]}' if freed else '-', player_health_end=p[-1]['health'],
+                 runner_end='AttackerRemoved' if STOP in r['stdout'] else 'marker')
+        return f
     if name == 'STALE':
         dead = next(j for j, x in enumerate(p) if x['playerstate'] == 1)
         f = dict(player_dead_capture=dead, attacker_at_death=p[dead]['attacker'], killcount=p[-1]['killcount'],
@@ -375,13 +517,32 @@ def evidence(name, work, cc, bins=None):
     runs = {b: run(name, x, work / 'runs' / f'{name}_{b}', wads) for b, x in bins.items()}
     s, fails = runs['strict'], []
     for b, r in runs.items():
-        if not G.clean(r) or r['digests'] != s['digests'] or any(r[k] != s[k] for k in ('sound', 'session')):
+        ok = stopped(r) if ITEMS[name].get('stop') else G.clean(r)
+        if not ok or r['digests'] != s['digests'] or any(r[k] != s[k] for k in ('sound', 'session')):
             fails.append(f'{name} {b}: exit {r["code"]}, or its dumps or streams differ from strict: {r["stderr"][-400:]}')
     obs = observed(runs['observer'])
     return runs, wads, obs, fails, bins
 
 
-def state_text(name, r, caps, f):
+def variant_rows(name, work, cc, wads, caps, f, xbins, strict):
+    """BARREL*/MISS*: the V row of the `sweep` fault (the first capture whose DSIM45 digest differs from the strict
+    run's, and the variant's digest there) and, for an item with a freed read, the scrub builds' outcomes."""
+    if not xbins:
+        xbins.update(sweep=B.variant('sweep', SWEEP, work / 'build', cc),
+                     **{f'scrub{x:02x}': B.variant(f'scrub{x:02x}', scrub(x), work / 'build', cc) for x in (0, 0xff)})
+    r = run(name, xbins['sweep'], work / 'runs' / f'{name}_sweep', wads)
+    v = project(name, r, wads)
+    k = next((j for j, (x, y) in enumerate(zip(caps, v)) if x != y), None)
+    if r['code'] or k is None: sys.exit(f'{name}: the sweep variant exits {r["code"]} or changes no capture')
+    if f['freed_reads']:
+        for b in ('scrub00', 'scrubff'):
+            q = run(name, xbins[b], work / 'runs' / f'{name}_{b}', wads)
+            d = G.first_diff(q['digests'], strict)
+            f[b] = f'exit {q["code"]}, dumps {len(q["digests"])}, first differing dump {d}'
+    return [f'V,sweep,{name},{k},{v[k]}']
+
+
+def state_text(name, r, caps, f, extra=()):
     tics = lump(name)[1]
     seq = sha(b''.join(bytes.fromhex(c) for c in caps))
     head = [f'#schema,{SCHEMA}',
@@ -394,7 +555,8 @@ def state_text(name, r, caps, f):
     rows = [f"I,{name},{','.join(map(str, header(name)))},{tics},{len(caps)},{sha(''.join(r['digests']))},{seq}"]
     rows += [f'C,{name},{j},{d}' for j, d in enumerate(caps)]
     rows += [f'O,{k},{" ".join(map(str, v)) if isinstance(v, list) else v}' for k, v in f.items()]
-    return '\n'.join(head + rows) + '\n'
+    if extra: head.append('#columns,V,variant,item,first differing capture,its DSIM45 digest in the variant')
+    return '\n'.join(head + rows + list(extra)) + '\n'
 
 
 def author(name, s, obs):
@@ -417,7 +579,7 @@ def main():
     a = ap.parse_args()
     work = a.work.resolve()
     if work == ROOT or ROOT in work.parents: sys.exit('--work must lie outside the repository')
-    out, bins, total = {}, None, 0
+    out, bins, total, xbins = {}, None, 0, {}
     for name in ITEMS:
         if a.only and name not in a.only.split(','): continue
         runs, wads, obs, fails, bins = evidence(name, work, a.cc, bins)
@@ -425,8 +587,9 @@ def main():
         if a.author: author(name, s, obs)
         if fails: print('\n'.join(['FAILURES:'] + fails)); return 1
         caps, f = project(name, s, wads), facts(name, s, obs)
-        print(f'{name}: {len(caps)} captures (DSIM45); ' + ', '.join(f'{k} {v}' for k, v in f.items()))
-        text = state_text(name, s, caps, f)
+        extra = variant_rows(name, work, a.cc, wads, caps, f, xbins, s['digests']) if name.startswith(('BARREL', 'MISS')) else []
+        print(f'{name}: {len(caps)} captures (DSIM45); ' + ', '.join(f'{k} {v}' for k, v in f.items()) + ' ' + ' '.join(extra))
+        text = state_text(name, s, caps, f, extra)
         if a.selftest:
             # The tool can fail: one extra P_Random draw planted in the runner (m6b_build --selftest-extra-draw) must
             # make the projected digests differ from these at the capture after it, and a golden with one digit
