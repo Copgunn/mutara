@@ -637,6 +637,73 @@ fn a_respawned_monster_faces_ang45_times_the_spawn_angle_over_45() {
     panic!("no gate index respawned the corpse");
 }
 
+/// Pins `validate_decoration_at`'s per-field refusals (the doc of `validate_decoration`: a
+/// decoration holds its spawn record forever): a wrong `tics` alone, or a wrong `health`
+/// alone, is refused, though the other holds. Below the public API: the witness is
+/// `pub(crate)` and a spawned decoration is never wrong in one field.
+#[test]
+fn a_decoration_with_one_wrong_field_is_refused() {
+    let mut lumps = crate::player_movers_tests::room(0);
+    lumps.add_thing([-32, 0, 0, 1, 7]);
+    lumps.add_thing([200, 0, 0, 34, 7]);
+    let options = MapContextOptions {
+        initial_rng: DoomRng::from_indices(6, 0),
+        respawn_monsters: false,
+    };
+    let mut s = Simulation::original_player_episode1_map(lumps.map(), options).expect("loads");
+    s.spawn_map_things().expect("spawns");
+    let decoration = s
+        .actor_order()
+        .filter_map(|i| s.actor(i))
+        .find_map(|a| {
+            let l = a.life()?;
+            (l.actor_type.0 == OriginalActorType::MT_MISC49.ordinal()).then_some(*a)
+        })
+        .expect("the candle");
+    let check = |a| crate::e1m1_rules::validate_decoration_at(None, a, false);
+    assert_eq!(check(decoration), Ok(()));
+    let mut tics = decoration;
+    tics.life.as_mut().expect("typed").tics = 3;
+    let mut health = decoration;
+    health.life.as_mut().expect("typed").health += 1;
+    for a in [tics, health] {
+        assert_eq!(check(a), Err(PlayerBodyError::Invariant.into()));
+    }
+}
+
+/// Pins the extent of the unfit-monster rule of `spawn_map_things` under wire 29
+/// (p_mobj.c:515-521: `P_SpawnMobj` makes no fit test, the shootable case of the movers
+/// policy's witness): only a `MF_COUNTKILL` thing is spawned in a sector (the room's second) whose
+/// floor is at its ceiling; a candle there is refused by the spawn fit test as under every other
+/// wire. Below the public API: the one-sector edit of a synthetic room is the whole setup.
+#[test]
+fn only_a_monster_may_spawn_in_a_closed_sector_under_wire_29() {
+    let load = |kind: i16| {
+        let mut lumps = crate::player_movers_tests::room(0);
+        let sectors = &mut lumps
+            .lumps
+            .iter_mut()
+            .find(|(n, _)| n == "SECTORS")
+            .unwrap()
+            .1;
+        sectors[26..30].copy_from_slice(&[0, 0, 0, 0]);
+        lumps.add_thing([-32, 0, 0, 1, 7]);
+        lumps.add_thing([200, 0, 0, kind, 7]);
+        Simulation::original_player_episode1_v7_level_at(
+            lumps.map(),
+            1,
+            Skill::Medium,
+            NONE,
+            MapContextOptions::default(),
+            LevelStart::NewGame,
+            0,
+        )
+    };
+    assert!(load(3001).is_ok(), "the imp spawns on the floor, unfit");
+    let refused = load(34).err().expect("the candle is refused");
+    assert!(format!("{refused:?}").contains("Fit"), "{refused:?}");
+}
+
 /// Pins `toggles_pause` and `save_command` over all 256 button bytes, by the written rule
 /// of their docs (g_game.c:698-716, d_event.h:78-92): `BT_SPECIAL` (0x80) set, and the low
 /// two bits 1 (pause) or 2 (save game). Below the public API: the two predicates are
