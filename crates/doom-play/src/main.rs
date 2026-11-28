@@ -135,7 +135,8 @@ the mixer, the picture or the demo. They do nothing without an audio device (or 
   On exit, the lines starting \"audio\" echo a setting that is not at its default.
 
 Keys: Pause is the original's pause: the game stops, the PAUSE picture shows, sounds already
-playing play out, and Pause again goes on; both presses are recorded in the demo. Esc
+playing play out, and Pause again goes on; both presses are recorded in the demo. Under
+--bindings modern only, P is a second Pause key, the same in every way. Esc
 pauses the window instead (then Esc resumes, R restarts, Q quits; Pause does nothing
 there), outside the demo, and works during the original's pause too; on a refusal
 screen R restarts and Q or Esc quits. During a screen melt every key and mouse button is

@@ -1269,6 +1269,11 @@ impl App {
         &self.mode
     }
 
+    /// The bindings preset the app was configured with.
+    pub fn preset(&self) -> Preset {
+        self.cfg.preset
+    }
+
     /// The simulation's tic count (committed tics this session).
     pub fn tic(&self) -> u64 {
         self.session

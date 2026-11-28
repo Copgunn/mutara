@@ -5,6 +5,7 @@
 //! (the `data1 < NUMKEYS` tests, g_game.c:566 and 571), so it is not forwarded.
 
 use doom_game::app::{App, Host, Mode};
+use doom_game::input::Preset;
 use doom_game::input::keys::{
     KEY_BACKSPACE, KEY_DOWNARROW, KEY_ENTER, KEY_EQUALS, KEY_ESCAPE, KEY_F, KEY_LEFTARROW,
     KEY_MINUS, KEY_PAUSE, KEY_RALT, KEY_RCTRL, KEY_RIGHTARROW, KEY_RSHIFT, KEY_TAB, KEY_UPARROW,
@@ -28,7 +29,8 @@ pub trait Mute {
 /// A key went down (`down`, with `repeat` for auto-repeat) or up: the mute key toggles the
 /// host's mute on its first down event and goes nowhere else; any other key the game path can
 /// see goes to the app. An auto-repeated down goes to the app only while it is playing and only
-/// for a key other than the app's pause keys (Esc and Pause): the event layer drops it as the
+/// for a key other than the app's pause keys (Esc and Pause, and P, which under `--bindings
+/// modern` sends what Pause sends): the event layer drops it as the
 /// repeat of a key it holds, except after a level load, where it is the keydown that sets a held
 /// key again (`G_DoLoadLevel` clears the held keys, g_game.c:490-496). On the pause and end
 /// screens a repeat is dropped, so a held Esc, R or Q acts once.
@@ -45,7 +47,12 @@ pub fn key_event<H: Host + Mute>(
         }
         return;
     }
-    if let Some(code) = doom_key(key) {
+    let code = match key {
+        // `--bindings modern` only (the owner's ruling D40(a)): P is a second Pause key
+        KeyCode::P if app.preset() == Preset::Modern => Some(KEY_PAUSE),
+        _ => doom_key(key),
+    };
+    if let Some(code) = code {
         let app_key = code == KEY_ESCAPE || code == KEY_PAUSE || app.mode() != &Mode::Playing;
         if !(down && repeat && app_key) {
             app.key(code, down, host);
