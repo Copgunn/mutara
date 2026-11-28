@@ -23,11 +23,11 @@
   "tools/reference/m5c_starts.py": "757cfcda4392220aaa3e0da111c5162fe8a2e1aa3d74692ff7c759d6f8460235",
   "tools/reference/m5c_mixer_driver.c": "8712383a896c7ff4a9be330e1457c7e321262180f215568ea211ee78b2b15af3"
  },
- "items": 11,
- "starts": 276,
- "tics": 9008,
- "buffers": 5547,
- "goldens_sha256": "c78b6334f1c424d862907ca1f61a4e27471763c2b179f88db5f1096e91350bae",
+ "items": 12,
+ "starts": 281,
+ "tics": 9268,
+ "buffers": 5707,
+ "goldens_sha256": "1a9cc5d92b0a77f1bd20238c1920c69a37fef5decf8d5b345c8a03d3f872640b",
  "per_item": {
   "BLOCK4": {
    "sound_sha256": "dd28a61cd23661f1195bc644d45f66898b49fee99f7c2819e0bbbb301a9aceeb",
@@ -187,6 +187,22 @@
     "buffers": 170,
     "stream_sha256": "e058ff447d17a7df9b1c8506cdf0593a7e742ed2f88913a433cecbdb4cb2992d",
     "rows_sha256": "b436942d737ae6f9fe98ae321a9c445c7d42836b244d4f82e29245c35a246e95"
+   }
+  },
+  "REBORNP": {
+   "sound_sha256": "e1c215b6281ea98b34ccafaa1f9beef6ed1cb4299708e494089dd024a92748da",
+   "starts": 5,
+   "tics": 260,
+   "starts_sha256": "924f5d1742813ab58706884c60a60020d2fcbb1902d55dda95198324fdd88602",
+   "buffers": 160,
+   "stream_sha256": "9008624e55e78790fe3005cbe6a93b06477cd193f8af81625ce0504da64ca1de",
+   "golden_sha256": "2a521116d499e6f51a0e0d61e716d7b1861748c9cddd5df3e59f142437006589",
+   "model": "identical",
+   "variants": "identical",
+   "pertic": {
+    "buffers": 260,
+    "stream_sha256": "02f198a675301051dd0ffd4e5d51db138450eed453e7d2a0f41e9232e2e753ab",
+    "rows_sha256": "df4e6a5189ad57b6f58c2fbe56de20826cd9e9e2f103b95cc490ed286d8a85bd"
    }
   },
   "TURBOP": {
