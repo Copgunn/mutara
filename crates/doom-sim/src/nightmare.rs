@@ -87,6 +87,9 @@ pub(crate) enum Fault {
     /// `wrapzero` (`tools/reference/wire29_wrap.py`): the slide intercept that
     /// wire 29 admits is 0, as for a parallel line (p_maputl.c:242-243).
     WrapZero,
+    /// `sweep` (`tools/reference/wire29_stale.py`): `P_NightmareRespawn` clears
+    /// every `target` and `attacker` naming the corpse before removing it.
+    Sweep,
 }
 #[cfg(test)]
 thread_local! {
@@ -284,7 +287,28 @@ pub(crate) fn respawn<A: ActorAccess>(h: &mut LifeHost<'_, A>, id: ActorId) {
             stats.total_kills += 1;
         }
     }
+    if planted(Fault::Sweep) {
+        sweep(h, id);
+    }
     h.mark(id);
+}
+
+/// The planted fault `sweep`: every live actor's `target` (with its `threshold`)
+/// and the player's `attacker` naming the corpse cleared before its removal.
+fn sweep<A: ActorAccess>(h: &mut LifeHost<'_, A>, corpse: ActorId) {
+    for t in h.access.live_order().unwrap_or_default() {
+        if let Some(l) = h.access.get_mut(t).and_then(|a| a.life.as_mut()) {
+            if l.target == Some(corpse) {
+                l.target = None;
+                l.threshold = 0;
+            }
+        }
+    }
+    if let Some(p) = h.player.as_deref_mut() {
+        if p.attacker == Some(corpse) {
+            p.attacker = None;
+        }
+    }
 }
 
 /// `P_SpawnMobj`'s reaction time (p_mobj.c:503-504): the type's `defined` value,

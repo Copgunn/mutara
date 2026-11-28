@@ -42,8 +42,13 @@ pub(crate) trait MissileWorld {
     fn definition(&self, ty: ActorTypeId) -> &ActorTypeDef;
     fn emit(&mut self, event: Event);
     fn gameplay_draw(&mut self) -> u8;
-    /// PIT_CheckThing/PIT_CheckLine result, with any thing to damage.
-    fn contact(&self, id: ActorId, target: [Fixed; 2]) -> (SectorMoveAttempt, Option<ActorId>);
+    /// PIT_CheckThing/PIT_CheckLine result, with any thing to damage, and whether
+    /// the check read a freed owner ([`missile_contact`]).
+    fn contact(
+        &self,
+        id: ActorId,
+        target: [Fixed; 2],
+    ) -> (SectorMoveAttempt, Option<ActorId>, bool);
     /// P_DamageMobj from inside the block iterator.
     fn strike(&mut self, request: DamageRequest);
     fn enter_missile_state(&mut self, id: ActorId, state: StateId);
@@ -203,7 +208,10 @@ fn explode<W: MissileWorld>(w: &mut W, id: ActorId) {
 /// inside the source block iterator. A refused move also returns its sky
 /// `ceilingline`, if any.
 fn try_move<W: MissileWorld>(w: &mut W, id: ActorId, target: [Fixed; 2]) -> (bool, Option<u16>) {
-    let (attempt, hit) = w.contact(id, target);
+    let (attempt, hit, freed) = w.contact(id, target);
+    if freed {
+        w.refuse(SimError::FreedRead);
+    }
     if let Some(victim) = hit {
         let life = w.missile(id).life.unwrap();
         let damage = w.definition(life.actor_type).damage();
@@ -360,27 +368,33 @@ pub(crate) fn fly<W: MissileWorld>(w: &mut W, id: ActorId) -> bool {
 }
 /// PIT_CheckThing/PIT_CheckLine over any actor lookup. Pure: the source draw
 /// and P_DamageMobj in the missile branch are the caller's, after this returns.
+/// The owner's type is read at a contact only (p_map.c:298-301, after the height
+/// tests). Wire 29: an owner `P_NightmareRespawn` removed is still read while
+/// pending (its block in use); once `P_RunThinkers` has freed it, it no longer
+/// resolves and that read is of freed memory: the check stops there and returns
+/// `true` last, for the caller to refuse the tic (`SimError::FreedRead`). Older
+/// wires refuse a removed owner at the tic's preflight.
 fn missile_contact(
     (world, sectors): (&StaticWorld, crate::staging::Sectors<'_>),
     spatial: &movement::SpatialIndex,
     lookup: &impl Fn(ActorId) -> Option<Actor>,
     id: ActorId,
     target: [Fixed; 2],
-) -> (SectorMoveAttempt, Option<ActorId>) {
+) -> (SectorMoveAttempt, Option<ActorId>, bool) {
     let a = lookup(id).expect("live missile");
     let missile = a.life.unwrap().flags & MISSILE != 0;
     if !missile {
         return (
             multisector::check_move((world, sectors), id, &a, target, spatial, lookup, false),
             None,
+            false,
         );
     }
-    let owner = a.life.unwrap().target.unwrap();
-    let owner_type = lookup(owner)
-        .expect("preflight owner")
-        .life
-        .unwrap()
-        .actor_type;
+    // `tmthing->target &&` (p_map.c:298): an owner is always set where a
+    // missile is admitted; the planted fault `sweep` clears it.
+    let owner = a.life.unwrap().target;
+    let mut owner_type = None;
+    let mut freed = false;
     let mut movement = ActorMoveAttempt {
         target,
         lines: Collision {
@@ -415,12 +429,25 @@ fn missile_contact(
             if a.z > other.z + other.height() || a.z + a.height() < other.z {
                 return true;
             }
+            let owner_type = match owner.map(|o| {
+                *owner_type
+                    .get_or_insert_with(|| lookup(o).and_then(|o| o.life).map(|l| l.actor_type))
+            }) {
+                Some(None) => {
+                    freed = true;
+                    movement.blocked_by_actor = Some(candidate);
+                    return false;
+                }
+                read => read.flatten(),
+            };
             // MT_KNIGHT(17) and MT_BRUISER(15) are one species to the source.
-            let same = owner_type == life.actor_type
-                || [owner_type.0, life.actor_type.0] == [15, 17]
-                || [owner_type.0, life.actor_type.0] == [17, 15];
+            let same = owner_type.is_some_and(|t| {
+                t == life.actor_type
+                    || [t.0, life.actor_type.0] == [15, 17]
+                    || [t.0, life.actor_type.0] == [17, 15]
+            });
             if same {
-                if candidate == owner {
+                if Some(candidate) == owner {
                     return true;
                 }
                 if life.actor_type != ActorTypeId(0) {
@@ -442,6 +469,7 @@ fn missile_contact(
     (
         multisector::check_move_from_things((world, sectors), &a, target, movement, false, true),
         damage,
+        freed,
     )
 }
 impl MissileWorld for Simulation {
@@ -460,7 +488,11 @@ impl MissileWorld for Simulation {
     fn gameplay_draw(&mut self) -> u8 {
         self.rng.p_random()
     }
-    fn contact(&self, id: ActorId, target: [Fixed; 2]) -> (SectorMoveAttempt, Option<ActorId>) {
+    fn contact(
+        &self,
+        id: ActorId,
+        target: [Fixed; 2],
+    ) -> (SectorMoveAttempt, Option<ActorId>, bool) {
         self.query_projectile_move(id, target)
     }
     fn strike(&mut self, request: DamageRequest) {
@@ -506,7 +538,11 @@ impl<A: lifecycle::ActorAccess> MissileWorld for LifeHost<'_, A> {
     fn gameplay_draw(&mut self) -> u8 {
         self.rng.p_random()
     }
-    fn contact(&self, id: ActorId, target: [Fixed; 2]) -> (SectorMoveAttempt, Option<ActorId>) {
+    fn contact(
+        &self,
+        id: ActorId,
+        target: [Fixed; 2],
+    ) -> (SectorMoveAttempt, Option<ActorId>, bool) {
         missile_contact(
             (self.world, self.sectors),
             self.spatial,
@@ -914,11 +950,27 @@ impl Simulation {
             {
                 let owner = life.target.ok_or(ProjectileError::Owner)?;
                 if self.actors.is_pending(owner) != Some(false) {
-                    return Err(ProjectileError::Owner.into());
+                    self.removed_owner()?;
                 }
             }
         }
         Ok(())
+    }
+    /// A flying missile's owner that is pending or retired. Older wires refuse it
+    /// here (no corpse is ever removed there, so no admitted run reaches it).
+    /// Wire 29 with respawning: `P_NightmareRespawn` removed the corpse
+    /// (p_mobj.c:408 sweeps no reference); the C reads the pointer only at a
+    /// contact (p_map.c:298-301) or as the damage source (p_inter.c:806-809),
+    /// where `missile_contact` and `DamagePlan::current_original` read a pending
+    /// one and refuse a freed one (`SimError::FreedRead`), so it is admitted here.
+    #[cold]
+    #[inline(never)]
+    fn removed_owner(&self) -> Result<(), SimError> {
+        if crate::nightmare::respawn_monsters(&self.world, self.actor_options.skill) {
+            Ok(())
+        } else {
+            Err(ProjectileError::Owner.into())
+        }
     }
     pub(crate) fn preflight_owner_removal(&self, owner: ActorId) -> Result<(), SimError> {
         if !self.player_policy().has_imps() {
@@ -1038,7 +1090,7 @@ impl Simulation {
         &self,
         id: ActorId,
         target: [Fixed; 2],
-    ) -> (SectorMoveAttempt, Option<ActorId>) {
+    ) -> (SectorMoveAttempt, Option<ActorId>, bool) {
         missile_contact(
             (&self.world, self.sector_view()),
             &self.spatial,
