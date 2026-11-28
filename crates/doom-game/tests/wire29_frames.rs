@@ -71,7 +71,10 @@ fn read(path: &str) -> String {
 
 /// The item as `m6a::data` takes it, its parameters and its commands (the demo's header and body).
 fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
-    let episode = matches!(name, "PAUSEWI" | "PAUSEFIN" | "LOADP" | "DEADSPEC");
+    let episode = matches!(
+        name,
+        "PAUSEWI" | "PAUSEFIN" | "LOADP" | "DEADSPEC" | "REBORNP"
+    );
     let first = [
         "tests/reference/m6b_wads/m6b.wad",
         "tests/reference/m6a_wads/episode.wad",
@@ -99,7 +102,7 @@ fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
 
 /// The wire 29 items, whose goldens are under `wire29_session/` (`tools/reference/wire29_pause.py`).
 fn new_item(name: &str) -> bool {
-    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP")
+    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP" | "REBORNP")
 }
 
 /// The genuine sound stream's rows by tic (`m6b_sound/<item>.sound` or `wire29_session/`).
@@ -634,6 +637,22 @@ fn wire_29_frames_sound_and_mixer_equal_the_genuine_engine() {
         totals.buffers += o.buffers;
     }
     eprintln!("wire 29 frames: {} runs, {totals:?}", RUNS.len());
+}
+
+/// REBORNP (`tools/reference/wire29_pause.py`): 0x81 on a reborn's load tic pauses the reloaded
+/// level before its tic 0, so its frames show the reborn player's view from viewz 0
+/// (`G_PlayerReborn`'s memset, g_game.c:815, after p_setup.c:604's viewz 1), where a carried
+/// player's is from 1 (LOADP). Every tic equals the genuine goldens.
+#[test]
+fn a_paused_reborn_load_tic_is_drawn_as_the_genuine_engine_draws_it() {
+    let o = drive("REBORNP", 10, true, None);
+    assert_eq!(o.first, None, "REBORNP {:?}", o.f_line);
+    assert_eq!(o.tics, item("REBORNP").2.len(), "every tic");
+    assert!(o.paused_frames > 0, "paused frames compared");
+    eprintln!(
+        "REBORNP: {} tics, {} paused frames",
+        o.tics, o.paused_frames
+    );
 }
 
 /// `pause_hu` (HU_Ticker stopped while paused, g_game.c:733) first differs at a level frame, the
