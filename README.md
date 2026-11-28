@@ -36,7 +36,11 @@ matches, which is what speedrun and tool-assisted (TAS) research need.
 
 ![A synthetic room before and after the original's pause command: the level stops, a black picture marks the pause, and the third panel shows no changed pixels.](docs/media/wire29-pause.gif)
 
-*The original's pause on a synthetic map (Rust frames, each equal to the original engine's; [how](docs/TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine)).*
+*The original's pause on a synthetic map (Rust frames, each equal to the original engine's); the PAUSE picture is our own placeholder graphic, a black box ([how](docs/TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine)).*
+
+![The genuine engine, the Rust session and their per-pixel difference playing a Nightmare intermission on a synthetic map as the kill counter runs from 0 to 200 percent; the difference stays black.](docs/media/wire29-resp4-intermission.gif)
+
+*Kills past 100 percent in a Nightmare intermission on a synthetic map: the original engine's and Rust's pictures are equal in all 200 tics (every 4th shown; [how](docs/TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine)).*
 
 ## Where it stands
 

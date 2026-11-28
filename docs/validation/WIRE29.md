@@ -144,6 +144,14 @@ mixed after each melt is. The 13 M6b session streams that were not committed are
 items, 276 starts, 9,008 tics, 5,547 buffers; strict, overflow, address and the model identical; `detect_leaks=0`. Self-tests of the tool:
 a flipped stream byte and a moved start are both reported.
 
+**The two pictures** (README). [`wire29_readme_visual.py`](../../tools/media/wire29_readme_visual.py) draws `docs/media/wire29-pause.gif`, the
+Rust frames of `PAUSE`, each equal to the genuine stream digest; its PAUSE picture is our own placeholder graphic, a black box.
+[`wire29_resp4_visual.py`](../../tools/media/wire29_resp4_visual.py) draws `docs/media/wire29-resp4-intermission.gif`: the genuine engine
+(the strict M6b runner, relinked with an observer that dumps each intermission picture) and Rust side by side with their difference, on
+`RESP4`'s intermission (session tics 1,316 to 1,515, every 4th shown, 51 frames). Observed when it was made: 200 of 200 pictures equal
+byte for byte (0 differing pixels) and each equal to its committed digest; the genuine kill counter reaches 200 percent; `--selftest`
+(a flipped pixel) exits 1; `--check` reproduces the file. Local: it needs a C compiler and cargo and is not in CI.
+
 **Planted faults of the session** (each with the variant's digest, or the stream line where the variant has none): `pause_mask` at `PAUSE`
 capture 137; `pause_run` at `PAUSE` 73 and `PAUSE0` 1; `pause_st` at session line 154 (tic 72); `pause_keep` at `PAUSEWI` tic 142; `pause_wi`
 at tic 127; `pause_hu` at `PAUSE` frame 145, hashing to the variant's F row digest; the picture one row lower at tic 72. A mutation that

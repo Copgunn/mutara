@@ -3519,7 +3519,7 @@ cargo test -p doom-game --release --test wire29_session --test wire29_frames
 cargo test -p doom-sim --release --lib nightmare_genuine_tests
 ```
 
-- The five genuine steps are in the "M6a genuine session" job of `rust.yml`; the Rust tests run in the existing workspace
+- The six genuine steps (the five above and `wire29_wrap.py`, below) are in the "M6a genuine session" job of `rust.yml`; the Rust tests run in the existing workspace
   test steps.
 - Address runs use `detect_leaks=0`: leak detection is disabled, which is not LeakSanitizer coverage.
 
@@ -3541,10 +3541,14 @@ cargo +nightly fuzz run TARGET CORPUS --sanitizer address -- -max_total_time=600
 **The rest of wire 29's tests and tools.** Observed results of all of these are in [the record](validation/WIRE29.md).
 
 ```sh
-# the block-walk overshoot item WRAP (wire 29 follows the wrapping step sum; local, not in CI: it builds the five genuine variants)
+# the block-walk overshoot item WRAP (wire 29 follows the wrapping step sum; builds the genuine variants; in CI)
 python3 tools/reference/wire29_wrap.py --check
 # the pause animation, docs/media/wire29-pause.gif (--work outside the repository; --check compares; runs cargo; local)
 python3 tools/media/wire29_readme_visual.py --work DIR --check
+# the RESP4 intermission animation, docs/media/wire29-resp4-intermission.gif: builds the strict M6b runner with a C compiler and runs the genuine engine
+# and Rust on the item, checks every intermission picture against the committed digests and each other, then draws; local, not in CI
+# (--selftest plants a flipped pixel and must exit 1)
+python3 tools/media/wire29_resp4_visual.py --work DIR --check
 # the Rust side not listed above
 cargo test -p doom-sim --lib nightmare_tests            # Rust-only rules, planted faults, DSIM45 reader rules
 cargo test -p doom-game --test wire29_display --test wire29_restore --test wire29_session --test wire29_frames
