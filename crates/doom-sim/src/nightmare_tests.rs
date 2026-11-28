@@ -783,7 +783,7 @@ fn the_wrapped_num_class_is_taken_for_the_slide_trace_alone() {
 #[test]
 fn a_freed_damage_source_is_refused_only_for_a_live_shootable_victim() {
     let source = ActorId::from_parts(900, 7);
-    let plan = |health: i32, shootable: bool| {
+    let plan = |health: i32, shootable: bool, stale: bool| {
         let mut s = level_at(2, Skill::Hard, NONE, 0);
         let victim = s
             .actor_order()
@@ -803,7 +803,7 @@ fn a_freed_damage_source_is_refused_only_for_a_live_shootable_victim() {
         let request = DamageRequest {
             target: victim,
             inflictor: None,
-            source: Some(source),
+            source: Some(if stale { source } else { victim }),
             amount: 1,
         };
         s.checked_demon_operation(|h| {
@@ -811,9 +811,10 @@ fn a_freed_damage_source_is_refused_only_for_a_live_shootable_victim() {
         })
         .and_then(|r| r)
     };
-    assert_eq!(plan(5, true), Err(SimError::FreedRead));
-    assert_eq!(plan(0, true), Ok(()));
-    assert_eq!(plan(5, false), Ok(()));
+    assert_eq!(plan(5, true, true), Err(SimError::FreedRead));
+    assert_eq!(plan(0, true, true), Ok(()));
+    assert_eq!(plan(5, false, true), Ok(()));
+    assert_eq!(plan(5, true, false), Ok(()), "a source that resolves");
 }
 
 /// Pins `removed_owner` (the doc of that function; p_mobj.c:408 sweeps no reference): a
