@@ -855,6 +855,12 @@ fn session_message(w: &SessionWitness) -> String {
              session stops here instead of playing on differently from the original."
                 .into()
         }
+        SessionWitness::Simulation(SimError::FreedRead) => {
+            "simulation: FreedRead. The original would read freed memory here, through a pointer \
+             to a monster's corpse removed when the monster respawned. What it reads depends on \
+             the memory allocator, so the session stops here instead of guessing."
+                .into()
+        }
         SessionWitness::Special => "a save command (BT_SPECIAL with BTS_SAVEGAME), or a special \
                                     command before wire 29: saving is not built yet"
             .into(),
