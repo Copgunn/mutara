@@ -316,9 +316,13 @@ fn radius_attack<A: ActorAccess>(h: &mut LifeHost<'_, A>, spot: ActorId) -> Resu
     // wounder with a non-NULL source (p_inter.c:904–915), or NULL. A handle that
     // no longer resolves would be a dangling pointer in C (undefined); the tic is
     // refused before any victim is touched (decision F4(iv)). Pending storage stays
-    // readable, so a source removed earlier in this tic is still the source.
+    // readable, so a source removed earlier in this tic is still the source. Wire
+    // 29 (a corpse removed by `P_NightmareRespawn` and freed): the C reads the
+    // pointer only in `P_DamageMobj` of a victim (p_inter.c:806-809), where
+    // `DamagePlan::current_original` refuses that read (`SimError::FreedRead`); an
+    // explosion that damages nothing reads nothing.
     let source = life.target;
-    if source.is_some_and(|s| h.access.get(s).is_none()) {
+    if source.is_some_and(|s| h.access.get(s).is_none()) && h.world.parameters.is_none() {
         return Err(PlayerBodyError::Invariant.into());
     }
     let origin = h.world.map().blockmap().origin();

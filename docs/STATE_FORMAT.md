@@ -2591,6 +2591,58 @@ constructors `original_player_episode1_v6_level` and `_at`. The independent enco
 `Snapshot::diagnostic_bytes` handles versions 20 to 40 only and refuses 44: DSIM44 bytes come from `snapshot().canonical_bytes()`. The
 reader is fuzzed ([TESTING](TESTING.md#wire-28-the-easy-skills-and-e1m7-on-skill-3)). DSIM1-43 bytes, encoders and fixtures are unchanged.
 
+## DSIM v45 — wire 29: Nightmare and the original's pause
+
+`PlayerMonstersEpisode1V7` captures are version 45 (wire 29, [rule](COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause),
+[evidence](validation/WIRE29.md)). **The layout is the DSIM44 layout field for field, plus two fields; nothing is removed or reordered**
+(decisions D1 and D2). Total +69 bytes, +2 fields; every byte after the new `actors.parameters` record moves by +31.
+
+| Where | DSIM44 | DSIM45 |
+| --- | --- | --- |
+| version word, byte offset 4 | 44 | 45 |
+| field count (u64, byte offset 8) | N | N + 2 |
+| `profile` value, byte offset 82 | 28 | 29 |
+| `context.schema` string (value starts at 156; the digit of the part is at 181) | `PLAYER-MONSTERS-EPISODE1-6-v1` | `PLAYER-MONSTERS-EPISODE1-7-v1` |
+| `actors.options` (after it, at byte 259; value: skill, 0, `nomonsters`) | skill 0 to 3 | skill 0 to 4 |
+| **new** `actors.parameters` (record at byte 288, 31 bytes: u32 path length 17, path, u64 length 2, value) | absent | two bytes `[respawnparm, fastparm]`, each 0 or 1 |
+| **new** `level.gametic_lead` (right after `level.start.gametic`; 38 bytes: u32 length 18, path, u64 length 8, a u64) | absent | `gametic` minus the level's tic count; equals `level.start.gametic` until a pause moves it |
+
+The two offsets 156 and 259 are measured on the first capture of item `BITS3` (the encoder's and the port's bytes alike); the record of
+`level.gametic_lead` moves with the actor count. **What the v45 reader (`Diagnostic::decode_episode1_v7`) checks beyond v44's:**
+`actors.parameters` is exactly two values of 0 or 1 (else `Structure`); `level.gametic_lead` lies in `level.start.gametic` to `i32::MAX`
+(else `Schema`); skill 4 is admitted (bounds taken with THING bit 4); a decoration's reaction time is 0 at skill 4 (p_mobj.c:503-504); kill
+credit may exceed `level.total_kills` (still not negative) **only with respawning**, that is skill 4 or `actors.parameters` byte 0 (`respawnparm`) set (else `Hard`, as in v44; review finding R4); a Demon or Spectre in a run to pain state (477 to 489) has `tics` in 1 to the
+duration of the table in force, halved iff skill 4 or `fastparm` (g_game.c:1423-1424), else `Identity`; this bound also holds the slow
+table (D4). Missile speeds are not validated. The paused byte of the simulation stays 0 (the session owns the flag, ruling N6 (a)).
+**Frozen-reader rule:** the v44 reader and every older one refuse 45 (`Version`); the v45 reader reads 45 only. A DSIM45 writer is
+built only by the wire 29 level-start constructor (`original_player_episode1_v7_level_at`). The independent encoder is
+`tools/reference/level_snapshot_wire29.py`. The reader is fuzzed (`wire29_dsim45`). DSIM1-44 bytes, encoders and fixtures are unchanged.
+
+## Session formats of wire 29 (`DSES` 4, `DDSP` 5, `DSND` 4, demo version 4)
+
+All four are written and read by the wire 29 configuration only (`Configuration::FinaleAndMeltWire29`). **Earlier versions keep their bytes
+and rules:** their readers refuse the new versions (`Version(4)` for `DSES` 3, `DDSP` 4 refuses 5 and `DSND` 3 refuses 4) and the new readers
+refuse the old ones. Each is fuzzed (`wire29_dses4`, `wire29_ddsp5`, `wire29_dsnd4`, `wire29_demo4`). The code's module documents hold the
+byte tables (`crates/doom-game/src/session/state_v4.rs`, `crates/doom-render/src/d_display/pause.rs`, `crates/doom-sound/src/chain_pause.rs`).
+
+| Format | Layout against its predecessor (offsets from the start, little endian) |
+| --- | --- |
+| `DSES` 4 | `DSES` 3's layout with: version u16 at 4 = 4; the skill byte at 9 may be 0 to 4; **three new bytes** at 11, 12 and 13, `respawnparm`, `fastparm` and `paused` (each 0 or 1), every later field 3 bytes later; the level blob is a `DSIM` 45; a **display kind** byte (5 = `DDSP` 5) before the display blob; the sound kind byte is 4 (= `DSND` 4) |
+| `DDSP` 5 | `DDSP` 4's bytes with the version u32 at 4 = 5 and **nine bytes inserted at offset 8**, before the game mode: u8 `paused` (0 or 1) and u64 `level_paused` (the level's paused tics since it was entered) |
+| `DSND` 4 | `DSND` 3's bytes with the version u16 at 4 = 4 and **nine bytes inserted at offset 67**, the end of the fixed part: u8 `mus_paused` (0 or 1) and u64 `level_paused` (paused tics of the current, or outside a level the finished, level since its load) |
+| Demo version 4 | Not a file format: the version-110 Episode 1 demo of the session. Header byte 1 (skill) is read as any byte and played as the smaller of it and 4 (g_game.c:1379-1380); bytes 5 and 6 (`respawnparm`, `fastparm`) are read as any value, **nonzero meaning set** (the original writes `M_CheckParm`'s argument number there, [Q-g_game-1559a](quirks/g_game.c.md)); every button byte is kept for the session to judge. The writer (`write_demo_episode1_v4`) writes bytes 5 and 6 as 1 or 0 and writes any button byte without bit 6, or with bit 7 (`BT_SPECIAL`) but not the save command (low bits 10); it refuses bit 6 without bit 7 and the save command (`DemoError::Buttons`). For skills 0 to 3 without parameters and without bit 7 its bytes equal version 3's. The v2 and v3 readers keep refusing skill 4, bytes 5 and 6 and bit 7 |
+
+**Rules added by the new versions.** `DSES` 4: the parameters equal the level's `actors.parameters`; the level's paused tics
+(`level.gametic_lead` minus `level.start.gametic`) are session tics the simulation did not run, so the capture's tic plus them equals the sound's
+level tics, and they equal the sound's and (in a level) the display's paused tics; a paused level has `gameaction` 0 and at least one paused
+tic; the `paused` byte equals the display's and the sound's `mus_paused` (a load clears all three, g_game.c:494, s_sound.c:214; a toggle sets
+them together). `DDSP` 5: DDSP 4's rules with "a level scene's tic plus `level_paused` equals the session's tics since entered";
+`level_paused` is 0 outside a level; a level scene past its first tic that is paused has `level_paused` of at least 1. `DSND` 4: DSND 3's
+rules with level tics equal to DSND 2's rule minus `level_paused` (never negative). The pause display saves only `DDSP` 5 and the pause sound
+only `DSND` 4; the older `save_v*` functions refuse a pause session. New refusal values: `DsesError::DisplayKind`,
+`ChainStateError::Pause`, `SessionStateRefusal::PauseSavesVersion5`. The restore needs the live level, as every earlier one; a
+restored session continues as the unbroken one ([record §10](validation/WIRE29.md#10-restore-and-continue)).
+
 ## Sound session state (`DSND` version 1, M5c)
 
 Not a DSIM version and not a change to `DRST` or `DDSP`. `DSND` is the saved state of one sound session
@@ -3051,6 +3103,18 @@ state). Version 2 accepts a 2/3 disagreement as before: its acceptance is frozen
 `DEMO_SKILL_INDEX`) allowed to be 0 to 3 where version 2 allows 2 and 3 (`parse_demo_episode1_v3`, `write_demo_episode1_v3`,
 `EPISODE1_V3_DEMO_SKILLS`; `SessionDemo::parse_v3` and `bytes_v3`). For skills 2 and 3 its bytes equal version 2's; any other skill byte
 is `DemoError::Header`. The version 2 readers keep refusing 0 and 1. Both v3 readers are fuzzed (`wire28_demo3`).
+
+## Wire 29 golden files
+
+| File | Schema | Rows |
+| --- | --- | --- |
+| `tests/reference/wire29_state.txt` | `DOOM-WIRE29-STATE-v1` | `I,item,source,skill,respawnparm,fastparm,tics,run_captures,dumps_sha256,captures,map_sha256,sequence_sha256`: one per item; `C,item,capture,state_sha256`: the genuine strict build's DSIM45 state after each tic, through the independent encoder; `V,variant,item,dump_place,first_differing_capture,variant_state_sha256` (`refused` where DSIM45 cannot hold the state) |
+| `tests/reference/wire29_stale/` | `DOOM-WIRE29-STALE-v1` | per item (`STALE`, `STALE2`, `BOSS2`, `FASTOUT`, `BARRELP`, `BARRELF`, `BARRELN`, `MISS0`, `MISSP`, `MISSF`, and `WRAP` and `STEPREAD` from `wire29_wrap.py`): a `*_state.txt` (`stepread_state.txt`, `wrap_state.txt`, `barrel*_state.txt`, `miss*_state.txt`) with `I`, `C` and `O` rows (the observer build's facts: overflowing and read step sums, pending and freed reads of a removed corpse; `V` rows for the planted variants), and the item's WAD, demo and stream |
+| `tests/reference/wire29_session/` | per file | the 13 pinned M6b session streams and the items `DEADSPEC`, `LOADP`, `TURBOP`, `REBORNP`, `MELTP`, `DEADEXIT` with their state (`<item>_state.txt`, `deadexit_state.txt` among them), frame, pause (`B` rows), melt (`MELTP.sb10.melt`) and sound streams; and `<item>_levels.txt` (schema `DOOM-WIRE29-LEVELS-v1`): the `DSIM` 45 projection of each later level of `DEADSPEC`, `LOADP`, `REBORNP`, `MELTP` and `DEADEXIT`, one `D` row per session tic of that level, paused tics included (a paused load tic's sound records are pending at its capture and first in tic 0's last, as the `DSIM` 42 text says) |
+| `tests/reference/wire29_border/`, `tests/reference/wire29_wads/border.wad` | per file | the pause picture's place at screen sizes 9, 5 and 3 (`B` rows) and `O` rows, with our own border lumps |
+| `tests/reference/wire29_mixer/`, `wire29_mixer_results.json` | per file | the genuine mixer's rows for the M6b and wire 29 sound streams (14 items at the last `--check`) |
+
+Digests come from the genuine runner's dumps through the independent encoder, never from Rust output. Commands: [TESTING](TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine).
 
 ## M6a golden files that hold state digests
 

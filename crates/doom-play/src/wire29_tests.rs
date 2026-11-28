@@ -1,0 +1,440 @@
+//! Wire 29 in doom-play (M6b rulings N1, N4, N5, N7): the `--skill 4`, `--respawn` and `--fast`
+//! flags, the help's account of them and of the two pauses, and sessions through the app on
+//! doom-play's loader: the Pause key's command recorded as the original builds it (g_game.c:426-430)
+//! and replayed by a fresh session to the same state, Esc's pause outside the demo, a restart as a
+//! new game, and a missing `M_PAUSE` refused at the first paused tic (decision D24 of step 7).
+//! Rust-only checks; the genuine engine plays such recordings in `tools/local/wire29_real.py --kind sessions
+//! --recording FILE`.
+
+use crate::keys::{Mute, key_event};
+use crate::melt_tests::at;
+use crate::{HELP, parse};
+use doom_game::app::{App, Ending, GameData, GameParameters, Host, Mode, SessionConfig};
+use doom_game::app::{PAUSE_COMMAND, Timestamp, Witness};
+use doom_game::input::Preset;
+use doom_game::input::keys::{KEY_ESCAPE, KEY_PAUSE, KEY_UPARROW};
+use doom_game::session::demo::{SessionDemo, replay_finale_and_melt};
+use doom_game::session::{ModeSetting, Session, SessionSettings, SessionWitness};
+use miniquad::KeyCode;
+use std::path::Path;
+use std::sync::Arc;
+
+fn args(s: &str) -> Vec<String> {
+    s.split_whitespace().map(String::from).collect()
+}
+
+const BOTH: GameParameters = GameParameters {
+    respawn: true,
+    fast: true,
+};
+
+#[test]
+fn skill_4_and_the_respawn_and_fast_flags() {
+    for (given, want) in [("4", 4), ("nightmare", 4), ("0", 0), ("uv", 3)] {
+        let o = parse(args(&format!("--iwad a.wad --skill {given}")))
+            .unwrap()
+            .unwrap();
+        assert_eq!((o.skill, o.parameters), (want, GameParameters::default()));
+    }
+    for (flags, respawn, fast) in [
+        ("--respawn", true, false),
+        ("--fast", false, true),
+        ("--fast --respawn --skill 2", true, true),
+    ] {
+        let o = parse(args(&format!("--iwad a.wad {flags}")))
+            .unwrap()
+            .unwrap();
+        assert_eq!(o.parameters, GameParameters { respawn, fast }, "{flags}");
+    }
+    for bad in ["--skill 5", "--skill nm", "--respawn 1", "--fast=1"] {
+        assert!(
+            parse(args(&format!("--iwad a.wad {bad}"))).is_err(),
+            "{bad}"
+        );
+    }
+    for want in [
+        "4 or nightmare: Nightmare!",
+        "--respawn            the original's -respawn",
+        "--fast               the original's -fast",
+        "Keys: Pause is the original's pause",
+        "both presses are recorded in the demo",
+        "Pause does nothing\nthere",
+        "skills 0 to 4 with --respawn and --fast",
+    ] {
+        assert!(HELP.contains(want), "{want}");
+    }
+    assert!(
+        !HELP.contains("Esc or Pause")
+            && !HELP.to_lowercase().contains("nightmare (skill 4), which")
+    );
+}
+
+#[derive(Default)]
+struct FileHost {
+    saved: Vec<(String, Vec<u8>)>,
+}
+
+impl Host for FileHost {
+    fn timestamp(&mut self) -> Timestamp {
+        Timestamp::default()
+    }
+    fn exists(&mut self, _: &str) -> bool {
+        false
+    }
+    fn save(&mut self, name: &str, bytes: &[u8]) -> Result<(), String> {
+        self.saved.push((name.to_owned(), bytes.to_vec()));
+        Ok(())
+    }
+}
+
+/// The synthetic episode's WADs, with M6b's own `M_PAUSE` (`m6b_gfx.wad`) or without it.
+fn data(with_pause_picture: bool) -> GameData {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/reference");
+    let mut names = vec![
+        "m6a_wads/episode.wad",
+        "m5b_gfx.wad",
+        "m5c_sfx.wad",
+        "m6a_wads/m6a_gfx.wad",
+        "m6a_wads/m6a_music.wad",
+    ];
+    if with_pause_picture {
+        names.push("m6b_wads/m6b_gfx.wad");
+    }
+    let files: Vec<Vec<u8>> = names
+        .iter()
+        .map(|w| std::fs::read(dir.join(w)).expect("WAD"))
+        .collect();
+    let refs: Vec<&[u8]> = files.iter().map(Vec::as_slice).collect();
+    GameData::load_wire29_session(&refs, ModeSetting::Probe, 1, 4, BOTH).expect("skill 4")
+}
+
+/// Runs slots until the session has run `tics` tics.
+fn run_to(app: &mut App, host: &mut FileHost, k: &mut u64, tics: u64) {
+    while app.tic() < tics && app.mode() == &Mode::Playing {
+        *k += 1;
+        assert!(*k < 10_000, "{tics} tics not reached");
+        app.update(at(*k), host);
+    }
+}
+
+/// The Pause key (ruling N7): its command replaces the buttons and keeps the movement of the
+/// command built with the up arrow held (g_game.c:426-430), toggles the session's `paused`
+/// (g_game.c:698-708) while `gametic` runs on; Esc pauses the app on top of it, the Pause key
+/// does nothing while the app is paused, Esc resumes, Pause unpauses. The demo holds exactly the
+/// two pause commands, skill 4 and both parameter bytes (g_game.c:1556, 1560-1561), reads back by
+/// the wire 29 reader alone, and replays through a fresh wire 29 session to the same saved state
+/// (`DSES` 4). A restart is a fresh session of the same skill and parameters (ruling N4).
+#[test]
+fn the_pause_key_records_the_original_command_and_replays() {
+    let mut host = FileHost::default();
+    let mut app = App::new(data(true), SessionConfig::default(), &mut host);
+    let mut k = 0;
+    app.key(KEY_UPARROW, true, &mut host);
+    run_to(&mut app, &mut host, &mut k, 40);
+    let t0 = app.tic();
+    app.key(KEY_PAUSE, true, &mut host);
+    app.key(KEY_PAUSE, false, &mut host);
+    run_to(&mut app, &mut host, &mut k, t0 + 1);
+    let s = app.session().expect("session");
+    let leveltime = s.level().tic();
+    let first = app.recorder().commands()[t0 as usize];
+    assert_eq!(
+        (first.buttons, first.forward),
+        (PAUSE_COMMAND, 25),
+        "buttons replaced, movement kept"
+    );
+    assert!(s.paused());
+    run_to(&mut app, &mut host, &mut k, t0 + 20);
+    let s = app.session().expect("session");
+    assert_eq!(
+        (s.paused(), s.level().tic()),
+        (true, leveltime),
+        "the level stands still"
+    );
+    app.key(KEY_ESCAPE, true, &mut host);
+    assert_eq!(
+        app.mode(),
+        &Mode::Paused,
+        "Esc stops the app on top of the original's pause"
+    );
+    app.key(KEY_PAUSE, true, &mut host);
+    assert_eq!(
+        app.mode(),
+        &Mode::Paused,
+        "the Pause key does nothing while the app is stopped"
+    );
+    app.key(KEY_ESCAPE, true, &mut host);
+    assert_eq!(app.mode(), &Mode::Playing);
+    run_to(&mut app, &mut host, &mut k, t0 + 30);
+    assert!(
+        app.session().unwrap().paused(),
+        "no command was sent by the stopped app's Pause"
+    );
+    let t1 = app.tic();
+    app.key(KEY_PAUSE, true, &mut host);
+    run_to(&mut app, &mut host, &mut k, t1 + 20);
+    let s = app.session().expect("session");
+    assert!(!s.paused() && s.level().tic() > leveltime);
+    let pauses: Vec<u64> = (app.recorder().commands().iter().enumerate())
+        .filter_map(|(t, c)| (c.buttons == PAUSE_COMMAND).then_some(t as u64))
+        .collect();
+    assert_eq!(pauses, [t0, t1]);
+    app.quit(&mut host);
+    let (name, bytes) = host.saved.last().expect("a demo file").clone();
+    assert!(name.starts_with("E1M1-skill4-"), "{name}");
+    assert_eq!(
+        bytes[..7],
+        [110, 4, 1, 1, 0, 1, 1],
+        "version, skill, episode, map, the parameters"
+    );
+    let (demo, parameters) = SessionDemo::parse_v4(&bytes).expect("the wire 29 reader");
+    assert_eq!((demo.map, demo.skill, parameters), (1, 4, BOTH));
+    assert_eq!(demo.commands, app.recorder().commands());
+    assert_eq!(demo.bytes_v4(parameters).expect("written"), bytes);
+    assert!(
+        SessionDemo::parse_v3(&bytes).is_err() && demo.bytes_v3().is_err(),
+        "the earlier ones"
+    );
+    let played = app.session().expect("session");
+    let session_data = Arc::clone(played.data());
+    let settings = SessionSettings {
+        map: 1,
+        skill: 4,
+        screenblocks: 10,
+    };
+    let fresh = |p| Session::new_finale_and_melt_wire29(Arc::clone(&session_data), settings, p);
+    let mut replayed = fresh(parameters).expect("a fresh session");
+    let end = replay_finale_and_melt(&mut replayed, &demo.commands, |_, _| {}, |_, _, _| {});
+    assert_eq!((end, replayed.gametic()), (None, played.gametic()));
+    let state = |s: &Session| s.save_v4().expect("saveable").encode();
+    assert_eq!(state(&replayed), state(played));
+    // a restart: a new game of the same skill and parameters, unpaused, its own demo
+    app.restart(&mut host);
+    let s = app.session().expect("session");
+    assert_eq!((s.gametic(), s.paused(), s.parameters()), (0, false, BOTH));
+    assert_eq!(state(s), state(&fresh(BOTH).expect("a new game")));
+    assert!(app.recorder().is_empty());
+}
+
+/// A session stopped at a read of freed memory (findings R1 and R3): MISSF and BARRELF
+/// (`tools/reference/wire29_stale.py`, skill 3 with `--respawn`) played through the app by the
+/// vanilla keys that build their commands (arrows, `.`, right Ctrl; g_game.c:368-445). Each ends refused at the
+/// genuine engine's freed read with `FreedRead` named in plain words on the end screen, and the
+/// demo saved on the ending holds every command before the refused tic and reads back by the wire 29
+/// reader.
+#[test]
+fn a_freed_read_ends_the_session_with_its_reason_and_the_demo_saved() {
+    use doom_game::input::keys::{KEY_DOWNARROW, KEY_RCTRL};
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/reference");
+    let respawn = GameParameters {
+        respawn: true,
+        fast: false,
+    };
+    for (name, wad, freed_read) in [("MISSF", "missf.wad", 804), ("BARRELF", "barrel.wad", 961)] {
+        let lmp = std::fs::read(dir.join(format!("wire29_stale/{name}.lmp"))).expect("demo");
+        let (demo, parameters) = SessionDemo::parse_v4(&lmp).expect("the wire 29 reader");
+        assert_eq!((demo.skill, parameters), (3, respawn));
+        let wad = format!("wire29_stale/{wad}");
+        let files: Vec<Vec<u8>> = [wad.as_str()]
+            .into_iter()
+            .chain(SHARED)
+            .map(|w| std::fs::read(dir.join(w)).expect("WAD"))
+            .collect();
+        let refs: Vec<&[u8]> = files.iter().map(Vec::as_slice).collect();
+        let data = GameData::load_wire29_session(&refs, ModeSetting::Probe, 1, 3, respawn)
+            .expect("skill 3 with -respawn");
+        let mut host = FileHost::default();
+        let cfg = SessionConfig {
+            preset: Preset::Vanilla,
+            ..SessionConfig::default()
+        };
+        let mut app = App::new(data, cfg, &mut host);
+        // one update a millisecond: at most one tic each (a tic is 1/35 s), the melts by time
+        let mut now = 0;
+        let mut held = [false; 4];
+        while let Some(c) = demo.commands.get(app.tic() as usize) {
+            if app.mode() != &Mode::Playing {
+                break;
+            }
+            let want = [c.forward > 0, c.forward < 0, c.side > 0, c.buttons & 1 != 0];
+            for (i, code) in [KEY_UPARROW, KEY_DOWNARROW, b'.', KEY_RCTRL]
+                .into_iter()
+                .enumerate()
+            {
+                if held[i] != want[i] {
+                    app.key(code, want[i], &mut host);
+                    held[i] = want[i];
+                }
+            }
+            let t = app.tic();
+            while app.tic() == t && app.mode() == &Mode::Playing {
+                now += 1000;
+                assert!(now < 100_000_000, "{name}: stalled at {t}");
+                app.update(now, &mut host);
+            }
+        }
+        let Mode::Ended(Ending::Refused { tic, witness }) = app.mode().clone() else {
+            panic!("{name}: not refused: {:?}", app.mode());
+        };
+        let text = witness.to_string();
+        assert_eq!(tic, freed_read, "{name}: {text}");
+        assert!(
+            text.starts_with("simulation: FreedRead. The original would read freed memory"),
+            "{text}"
+        );
+        let summary = app.session_summary().expect("a session");
+        assert!(summary.contains(&format!("refused at session tic {tic}: {text}")));
+        let (file, bytes) = host
+            .saved
+            .last()
+            .expect("the demo saved at the ending")
+            .clone();
+        let (saved, p) = SessionDemo::parse_v4(&bytes).expect("the wire 29 reader");
+        assert_eq!((saved.skill, p), (3, respawn), "{file}");
+        assert_eq!(
+            saved.commands[..],
+            demo.commands[..tic as usize],
+            "{name}: every command before the refused tic"
+        );
+        eprintln!(
+            "{name}: refused at {tic}, {file}: {} commands",
+            saved.commands.len()
+        );
+    }
+}
+
+const SHARED: [&str; 5] = [
+    "m5b_gfx.wad",
+    "m5c_sfx.wad",
+    "m6a_wads/m6a_gfx.wad",
+    "m6a_wads/m6a_music.wad",
+    "m6b_wads/m6b_gfx.wad",
+];
+
+impl Mute for FileHost {
+    fn toggle_mute(&mut self) {}
+}
+
+/// Ruling D40(a): under `--bindings modern` P is a second Pause key, through the window's
+/// `key_event`: two presses (the first auto-repeated a tic later, which is dropped as Pause's is)
+/// give a demo equal byte for byte to the Pause key's, with the two pause commands (0x81,
+/// g_game.c:426-430). Under vanilla P reaches the game as `p`: no pause command, not paused.
+#[test]
+fn p_is_a_second_pause_key_under_modern_bindings_only() {
+    let record = |preset, key| {
+        let mut host = FileHost::default();
+        let cfg = SessionConfig {
+            preset,
+            ..SessionConfig::default()
+        };
+        let mut app = App::new(data(true), cfg, &mut host);
+        let (mut k, mut presses) = (0, vec![]);
+        for t in [20, 30] {
+            run_to(&mut app, &mut host, &mut k, t);
+            let t = app.tic();
+            presses.push(t);
+            key_event(&mut app, &mut host, key, true, false);
+            run_to(&mut app, &mut host, &mut k, t + 1);
+            key_event(&mut app, &mut host, key, true, true);
+            key_event(&mut app, &mut host, key, false, false);
+        }
+        run_to(&mut app, &mut host, &mut k, 40);
+        let paused = app.session().expect("session").paused();
+        app.quit(&mut host);
+        let bytes = host.saved.pop().expect("a demo file").1;
+        let (demo, _) = SessionDemo::parse_v4(&bytes).expect("the wire 29 reader");
+        let pauses: Vec<u64> = (demo.commands.iter().enumerate())
+            .filter_map(|(t, c)| (c.buttons == PAUSE_COMMAND).then_some(t as u64))
+            .collect();
+        (paused, pauses, presses, bytes)
+    };
+    assert_eq!(PAUSE_COMMAND, 0x81);
+    let (paused, pauses, presses, bytes) = record(Preset::Modern, KeyCode::Pause);
+    assert!(
+        !paused && pauses == presses && pauses.len() == 2,
+        "{pauses:?}"
+    );
+    let p = record(Preset::Modern, KeyCode::P);
+    assert_eq!(
+        (p.0, &p.1, &p.3),
+        (paused, &pauses, &bytes),
+        "byte for byte"
+    );
+    let p = record(Preset::Vanilla, KeyCode::P);
+    assert_eq!((p.0, p.1.len()), (false, 0), "P is `p` under vanilla");
+    assert!(!p.3.contains(&PAUSE_COMMAND), "no pause byte");
+}
+
+/// The Pause key pressed and released during the session-start melt: the app holds both and the
+/// first command after the melt is the pause command, whose tic is paused, as in the genuine
+/// engine (the melt loop runs no tic and reads no event, d_main.c:329-344; then G_Responder sets
+/// `sendpause`, g_game.c:561-563, and the next command carries it, 426-428; `MELTP`'s tic 140 in
+/// doom-game's `wire29_frames` is that tic against the genuine runner). The held release is one
+/// command later, which a pause byte ignores.
+#[test]
+fn the_pause_key_during_a_melt_pauses_the_first_tic_after_it() {
+    let mut host = FileHost::default();
+    let mut app = App::new(data(true), SessionConfig::default(), &mut host);
+    let mut k = 0;
+    while !app.melt_in_progress() {
+        k += 1;
+        assert!(k < 100, "no melt");
+        app.update(at(k), &mut host);
+    }
+    let t = app.tic();
+    app.key(KEY_PAUSE, true, &mut host);
+    app.key(KEY_PAUSE, false, &mut host);
+    assert_eq!(app.held_inputs(), 2);
+    while app.melt_in_progress() {
+        k += 1;
+        app.update(at(k), &mut host);
+    }
+    assert_eq!(
+        (app.tic(), app.recorder().len() as u64),
+        (t, t),
+        "no tic in the melt"
+    );
+    run_to(&mut app, &mut host, &mut k, t + 2);
+    let buttons: Vec<u8> = app
+        .recorder()
+        .commands()
+        .iter()
+        .map(|c| c.buttons)
+        .collect();
+    assert_eq!(buttons[t as usize..t as usize + 2], [PAUSE_COMMAND, 0]);
+    assert!(app.session().expect("session").paused());
+}
+
+/// Without `M_PAUSE` the first paused tic is refused with the state kept (decision D24 of step 7;
+/// the genuine engine stops in `W_CacheLumpName` on its first paused frame, d_main.c:307): the
+/// app ends there and the refused tic's pause command is not in the demo.
+#[test]
+fn a_missing_pause_picture_refuses_the_first_paused_tic() {
+    let mut host = FileHost::default();
+    let mut app = App::new(data(false), SessionConfig::default(), &mut host);
+    let mut k = 0;
+    run_to(&mut app, &mut host, &mut k, 20);
+    let t0 = app.tic();
+    app.key(KEY_PAUSE, true, &mut host);
+    run_to(&mut app, &mut host, &mut k, 30);
+    let Mode::Ended(Ending::Refused { tic, witness }) = app.mode().clone() else {
+        panic!("not refused: {:?}", app.mode());
+    };
+    assert_eq!(tic, t0);
+    let Witness::Session(w) = witness else {
+        panic!("{witness:?}")
+    };
+    assert!(
+        matches!(
+            *w,
+            SessionWitness::Display(doom_render::SessionError::PausePicture(None))
+        ),
+        "{w:?}"
+    );
+    assert_eq!(
+        app.recorder().len() as u64,
+        t0,
+        "the refused tic is not recorded"
+    );
+    assert!(!app.session().unwrap().paused());
+}

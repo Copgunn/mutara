@@ -201,7 +201,7 @@ pub(crate) fn wrapping_intercept(
 /// [`WrapClass`]; `Err` for an `INT_MIN` operand or `FixedDiv2`'s range. The
 /// exact `den` and `num` are the same expressions in 64-bit integers (each
 /// `FixedMul` product, its shift and the sums fit), without any narrowing.
-fn classified(
+pub(crate) fn classified(
     v2_start: [Fixed; 2],
     v2_delta: [Fixed; 2],
     v1_start: [Fixed; 2],
@@ -265,11 +265,38 @@ pub(crate) fn policy_intercept(
     v1_delta: [Fixed; 2],
 ) -> Option<Fixed> {
     if world.wrapping_intercept {
-        wire27_intercept(caller, v2_start, v2_delta, v1_start, v1_delta).ok()
+        match wire27_intercept(caller, v2_start, v2_delta, v1_start, v1_delta) {
+            Ok(value) => Some(value),
+            Err(refusal) => {
+                world.wire29_intercept(caller, refusal, v2_start, v2_delta, v1_start, v1_delta)
+            }
+        }
     } else {
         crate::sight::checked_intercept(v2_start, v2_delta, v1_start, v1_delta)
     }
 }
+
+/// The wire 29 seam of [`policy_intercept`]: `StaticWorld`'s inherent
+/// `wire29_intercept` (nightmare.rs) takes precedence over this default, which
+/// keeps wire 27's refusal. The frozen tools/reference/wire27_read_main.rs
+/// compiles this file with a stub world that has no such method, so the
+/// default is used there alone.
+#[allow(dead_code)]
+pub(crate) trait Wire27Refuses {
+    /// Wire 27's refusal stands.
+    fn wire29_intercept(
+        &self,
+        _: InterceptCaller,
+        _: Wire27Refusal,
+        _: [Fixed; 2],
+        _: [Fixed; 2],
+        _: [Fixed; 2],
+        _: [Fixed; 2],
+    ) -> Option<Fixed> {
+        None
+    }
+}
+impl Wire27Refuses for StaticWorld {}
 
 /// Why wire 27 refuses a `P_InterceptVector` for a caller.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

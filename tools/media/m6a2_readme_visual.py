@@ -166,7 +166,7 @@ def compose(job, pal, pics):
         n = sum(a != b for a, b in zip(c, r))
         B.text(cv, 0, y, job['what'], idx['white'])
         B.text(cv, 0, y + 22, f"PICTURE {label}: {n} OF {PIXELS} PIXELS DIFFER", idx['green'] if n == 0 else idx['red'])
-        B.text(cv, 0, y + 46, 'ALL TICS AND MELT STEPS OF THE RUN COMPARED ON PALETTE INDICES. SYNTHETIC TEST MAP AND ART, NOT THE GAMES',
+        B.text(cv, 0, y + 46, job.get('note', 'ALL TICS AND MELT STEPS OF THE RUN COMPARED ON PALETTE INDICES. SYNTHETIC TEST MAP AND ART, NOT THE GAMES'),
                idx['grey'], 1)
         out.append((bytes(table), bytes(cv), free[len(B.UI)]))
     return out

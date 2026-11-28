@@ -418,6 +418,21 @@ pub(crate) fn hell_cap<A: ActorAccess>(
         amount
     })
 }
+/// A damage source that no longer resolves. Older wires refuse it (M3h9b decision
+/// F4(iv)). Wire 29 (a corpse `P_NightmareRespawn` removed, then freed): the C
+/// reads `source->player` for a victim that is shootable and alive
+/// (p_inter.c:787-791 return first, 806-809 read), so that read is refused
+/// (`SimError::FreedRead`); a victim it returns for reads nothing, and its plan
+/// is ignored with the source unread.
+#[cold]
+#[inline(never)]
+fn freed_source<A: ActorAccess>(host: &LifeHost<'_, A>, live: bool) -> Result<(), SimError> {
+    match (host.world.parameters.is_some(), live) {
+        (false, _) => Err(PlayerBodyError::Invariant.into()),
+        (true, true) => Err(SimError::FreedRead),
+        (true, false) => Ok(()),
+    }
+}
 /// P_KillMobj item for an admitted former human (p_inter.c drop switch).
 pub(crate) fn source_drop(ty: ActorTypeId) -> Option<identity::OriginalActorType> {
     use identity::OriginalActorType as T;
@@ -475,10 +490,10 @@ impl DamagePlan {
         // name an actor retired since the wound (C reads freed memory: undefined).
         // A source that no longer resolves refuses the tic before any mutation of
         // this victim (M3h9b decision F4(iv)); pending storage stays readable.
-        if policy.has_barrels() && request.source.is_some_and(|s| host.access.get(s).is_none()) {
-            return Err(PlayerBodyError::Invariant.into());
-        }
         let live = life.health > 0 && life.flags & MF_SHOOTABLE != 0;
+        if policy.has_barrels() && request.source.is_some_and(|s| host.access.get(s).is_none()) {
+            freed_source(host, live)?;
+        }
         // p_inter.c:806–811: no thrust when the source's player has the chainsaw
         // ready (Episode 1 policy; no older policy gives the chainsaw). The weapon
         // machine writes the ready weapon back only after its operation, and no

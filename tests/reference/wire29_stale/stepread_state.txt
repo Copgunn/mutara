@@ -1,0 +1,32 @@
+#schema,DOOM-WIRE29-STALE-v1
+#generator,tools/reference/wire29_wrap.py: the genuine M6b runner (strict build; overflow, address, observer, a planted-fault variant) and the independent DSIM45 encoder; never from Rust output
+#tics,capture j is the state after j session tics; a refusal at session tic N keeps capture N
+#state,as tests/reference/wire29_state.txt
+#columns,I,item,skill,respawnparm,fastparm,tics,captures,dumps_sha256,sequence_sha256
+#columns,C,item,capture,state_sha256 (strict)
+#columns,V,variant,first_differing_capture,variant_state_sha256
+#columns,O,fact,value (*_stop: the UBSan site and the dumps before it; step_overflows: site gametic flags iteration dead; defined_captures: the captures before the stop; step_reads: site gametic flags iteration, the sum >> FRACBITS and the cell coordinate it is compared with; V first_differing_capture none: equal at every capture)
+I,STEPREAD,2,0,0,16,17,784c230358127fa41cd0fa0d2527b485dfe264daccb26aa4e679bc0c54c0bbf1,2327e30e92ebf6d75f99215b623c75bb2a0f92c2a14a912a99871c2a623fc666
+C,STEPREAD,0,7a78b798e47a7b1b7759e7be1d6aec7419c8101dc06e5ce7a5d7e0af6e6f966d
+C,STEPREAD,1,fc9848f9bc57bc2b2bbbbe8d7d22b84d1a84af707ba7890be71f63928d6e1c08
+C,STEPREAD,2,8778b2f43e13fdc2f7cadb8eba9705e018abdad91eb5b8aadd33803dfc56a667
+C,STEPREAD,3,f60a8958573b5f433a1fc1b5ff6c8ce5b7ef4b459aee1aad0069059e07ea80e0
+C,STEPREAD,4,ec3c8e0e47ff5dc05adad23ecec7ba7d9e393ca1062bd3b521faf22148280dee
+C,STEPREAD,5,541c7462d0c5a0c91a7e28497cf41ba46247612efed6a1fbded4587dd7108513
+C,STEPREAD,6,606be12cfc458a4339027915dac974c2692c7621865d3cdd22bcef90d05e9225
+C,STEPREAD,7,af99592149edbbea0703503b0dd24597d1cd0c56eeac9ca276d7a19866b0f26a
+C,STEPREAD,8,28104dbdbfb554f1a74131adf7fe57337a4dcd73b46b4d599b168559640519fa
+C,STEPREAD,9,a18de443faba0fcdc2903478d260f354320554366ce217d93bea3f95eb59e500
+C,STEPREAD,10,1672ec5ffcb448d228cd4a63e4047e712ebda2e2ecdff41eb0c91f42d68887aa
+C,STEPREAD,11,30a6bee611eb7518794309b779a50c26c072e9cbc4850264c9289c2c7f863f03
+C,STEPREAD,12,baa39fd54a00caa59fa5a542748ffafb6d94b14bb35ee29ac55ded8c7c117c30
+C,STEPREAD,13,82ae326f10dccfea413ece5f4faef5dd2a94e809aeabf87b5cf68fb6fd9f1150
+C,STEPREAD,14,0e589c33350971aecff4d02a4a33459728fa7d37faa038e527fd632d687b5107
+C,STEPREAD,15,2a74b1664522769196c74a22e251bcc5dd298c156f38f638cdea34d19fb12d84
+C,STEPREAD,16,577a9599cbbe2608b8cf458790c205f9ac99f001c6ab18774d76e96e41cb0d27
+V,saturate,none,-
+O,overflow_stop,p_maputl.c:868 8
+O,address_stop,p_maputl.c:868 8
+O,step_overflows,868 7 1 0 0;868 7 1 0 1
+O,defined_captures,8
+O,step_reads,868 7 1 1 -32767 1

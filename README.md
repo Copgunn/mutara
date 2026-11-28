@@ -34,16 +34,25 @@ matches, which is what speedrun and tool-assisted (TAS) research need.
 
 *One recording on skill 0 and skill 1 (Rust frames, each equal to the original engine's; [how](docs/TESTING.md#wire-28-the-easy-skills-and-e1m7-on-skill-3)).*
 
+![A synthetic room before and after the original's pause command: the level stops, a black picture marks the pause, and the third panel shows no changed pixels.](docs/media/wire29-pause.gif)
+
+*The original's pause on a synthetic map (Rust frames, each equal to the original engine's); the PAUSE picture is our own placeholder graphic, a black box ([how](docs/TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine)).*
+
+![The genuine engine, the Rust session and their per-pixel difference playing a Nightmare intermission on a synthetic map as the kill counter runs from 0 to 200 percent; the difference stays black.](docs/media/wire29-resp4-intermission.gif)
+
+*Kills past 100 percent in a Nightmare intermission on a synthetic map: the original engine's and Rust's pictures are equal in all 200 tics (every 4th shown; [how](docs/TESTING.md#m6b-phase-2-wire-29-against-the-genuine-engine)).*
+
 ## Where it stands
 
 - **Game logic.** One player, six weapons, seven kinds of monster and Episode 1's map features
   ([what is admitted](docs/COMPATIBILITY.md#policies)).
 - **Real maps.** All nine Episode 1 maps and the original's own `DEMO1`: every scripted run stays in sync with the
   original C code, tic for tic, and so do the 80 hand-played sessions checked so far (over 280,000 tics).
-  Two honest figures. From distinct recordings, more than 540,000 real-map tics have been compared with the original,
-  every one equal. Counting also the same recordings replayed on other skills (where different things spawn and the game
-  plays out differently, but which no one played), more than 960,000 tics in all, every one equal
-  ([how each is summed, and what it leaves out](docs/validation/M6A.md#142-the-readmes-evidence-figures-summed-from-the-records);
+  Two honest figures. From distinct recordings, more than 550,000 real-map tics have been compared with the original, every one
+  equal. Counting also the same recordings replayed on other skills or with the fast or respawn setting or both (where the game plays
+  out differently, but which no one played), more than 1,700,000 tics in all, every one equal. Pause commands inserted into the
+  existing recordings changed nothing in play and are in neither figure
+  ([how each is summed](docs/validation/M6A.md#142-the-readmes-evidence-figures-summed-from-the-records), [wire 29's additions](docs/validation/WIRE29.md#8-real-maps-and-the-session);
   [scripted runs](docs/validation/M4B.md#real-maps-and-demo1); by hand: [M5c](docs/validation/M5C.md#hand-played-checks),
   [M5d](docs/validation/M5D.md#hand-played-checks), [M6a](docs/validation/M6A.md#5-after-the-hand-test-gate-2026-11-22-evening)).
 - **Picture.** Renderer, status bar, messages and palette flashes: frames equal the original's wherever compared ([what is and is not](docs/COMPATIBILITY.md#playable-build-m5b)).
@@ -60,14 +69,19 @@ matches, which is what speedrun and tool-assisted (TAS) research need.
   the original's engine on synthetic maps, and E1M7 on `uv`, the owner's sessions, the owner's hand test of 2026-11-26 (E1M8 to the finale on skills 0 and 1) and the existing recordings replayed on both easy skills also locally on real maps
   ([evidence](docs/validation/WIRE28.md)). If a monster or a corpse would be thrown through a wall, which the original lets happen, the
   session stops at that tic instead of guessing ([what it supports](docs/COMPATIBILITY.md#wire-28-the-easy-skills-and-e1m7-on-skill-3)).
+- **Nightmare, `-respawn`, `-fast` and the original's pause.** Skill 4 (fast monsters, corpses that come back to life, double ammunition),
+  the two options and the original's pause (the level stops; the status bar and sound go on) play. They are compared with the original's
+  engine on synthetic maps, frames and sound included, and locally on real maps and on the owner's hand test of 2026-11-27 (six recordings)
+  ([evidence](docs/validation/WIRE29.md); figures under "Real maps"). If the original would read memory that a respawned
+  monster's corpse freed, the session stops at that tic instead of guessing ([what it supports](docs/COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause)).
 
-Not yet, later: the automap, music, menus, general demo playback, other episodes, nightmare skill, or any claim of a match beyond the runs
+Not yet, later: the automap, music, menus, general demo playback, other episodes, or any claim of a match beyond the runs
 recorded so far
 ([what is missing](docs/ROADMAP.md#vanilla-completeness-checklist)).
 
 ## Play it
 
-`doom-play` plays Episode 1 from the map you pick (E1M1 to E1M9, skill 0 to 3: `hmp` and `uv` are 2 and 3) with your own `DOOM.WAD`: each exit
+`doom-play` plays Episode 1 from the map you pick (E1M1 to E1M9, skill 0 to 4: `hmp` and `uv` are 2 and 3, `nightmare` is 4; `--respawn` and `--fast` are the original's flags) with your own `DOOM.WAD`: each exit
 leads to the tally screen and the next map, and E1M8's exit leads to the episode's ending text and picture. To really play
 Doom, use an established source port such as [Chocolate Doom](https://www.chocolate-doom.org/).
 
@@ -79,9 +93,10 @@ cargo run --release -p doom-play -- --iwad /path/to/DOOM.WAD --map 1 --skill hmp
 ```
 
 - **Controls.** The original's defaults: arrows move and turn, right Ctrl fires, Space uses, right Shift runs, `1`-`8`
-  pick weapons, mouse left fires (`--bindings modern` gives WASD). Esc pauses (R restarts, Q quits), End mutes.
-- **Limits.** Needs an OpenGL 2.1 driver; no menus, saving or cheat codes; nightmare is refused
-  ([every limit, and what has been tried](docs/COMPATIBILITY.md#playable-build-m5b)).
+  pick weapons, mouse left fires (`--bindings modern` gives WASD). Pause is the original's pause (`P` too with `--bindings modern`), Esc pauses the window (R restarts, Q quits), End mutes.
+- **Limits.** Needs an OpenGL 2.1 driver; no menus, saving or cheat codes
+  ([every limit, and what has been tried](docs/COMPATIBILITY.md#playable-build-m5b)). A session with monsters respawning (skill 4, or `--respawn`) can stop at a read of
+  freed memory the original would follow (a pointer to a removed corpse; four causes, [listed](docs/COMPATIBILITY.md#wire-29-nightmare-respawn-fast-and-the-originals-pause)).
 
 ## How it's verified
 The original C source is the ground truth. Each behavior runs in both the original and the Rust code, and the whole game state is
