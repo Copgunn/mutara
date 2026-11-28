@@ -704,6 +704,76 @@ fn only_a_monster_may_spawn_in_a_closed_sector_under_wire_29() {
     assert!(format!("{refused:?}").contains("Fit"), "{refused:?}");
 }
 
+/// Pins the slide-only extent of `wire29_intercept` (ruling N9 (a), the doc of that function):
+/// a `P_InterceptVector` whose `FixedDiv2` has an exact den and a wrong num, which wire 27
+/// refuses for every caller, is taken (the genuine engine's value) for the slide trace alone
+/// and under wire 29 alone. The vectors are found by a fixed search over the `int` operands
+/// until wire 27 refuses that class for the slide trace. Below the public API: the function
+/// is `pub(crate)`, reached by the walk's intercepts, and the one genuine item (WRAP) is a slide.
+#[test]
+fn the_wrapped_num_class_is_taken_for_the_slide_trace_alone() {
+    use crate::intercept_vector::{
+        InterceptCaller as C, Operand, Wire27Refusal, WrapClass, policy_intercept, wire27_intercept,
+    };
+    let want = Wire27Refusal::Unevidenced(WrapClass::Div2 {
+        den: Operand::Exact,
+        num: Operand::Wrong,
+    });
+    let mut x = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = || {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        Fixed::from_bits((x >> 20) as i32)
+    };
+    let found = (0..4_000_000).find_map(|_| {
+        let v = [
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+        ];
+        let args = ([v[0], v[1]], [v[2], v[3]], [v[4], v[5]], [v[6], v[7]]);
+        (wire27_intercept(C::Slide, args.0, args.1, args.2, args.3) == Err(want)).then_some(args)
+    });
+    let (a, b, c, d) = found.expect("a vector of the class");
+    let wire29 = level_at(2, Skill::Hard, NONE, 0);
+    let wire28 = Simulation::original_player_episode1_v6_level_at(
+        m6b_map(2),
+        2,
+        Skill::Hard,
+        MapContextOptions::default(),
+        LevelStart::NewGame,
+        0,
+    )
+    .expect("wire 28");
+    for caller in [
+        C::AimLine,
+        C::AimThing,
+        C::ShootLine,
+        C::ShootThing,
+        C::Slide,
+        C::Use,
+    ] {
+        let refused = wire27_intercept(caller, a, b, c, d) == Err(want);
+        let took = policy_intercept(&wire29.world, caller, a, b, c, d);
+        assert_eq!(took.is_some(), !refused || caller == C::Slide, "{caller:?}");
+        assert_eq!(
+            policy_intercept(&wire28.world, caller, a, b, c, d).is_some(),
+            !refused,
+            "{caller:?} on wire 28"
+        );
+    }
+    assert!(
+        wire27_intercept(C::Use, a, b, c, d) == Err(want),
+        "a refusing non-slide caller"
+    );
+}
+
 /// Pins `toggles_pause` and `save_command` over all 256 button bytes, by the written rule
 /// of their docs (g_game.c:698-716, d_event.h:78-92): `BT_SPECIAL` (0x80) set, and the low
 /// two bits 1 (pause) or 2 (save game). Below the public API: the two predicates are
