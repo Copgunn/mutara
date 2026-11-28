@@ -60,7 +60,7 @@ fn read(path: &str) -> String {
 
 /// Where an item's files are: the frozen M6b goldens, or `wire29_session/`.
 fn new_item(name: &str) -> bool {
-    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP")
+    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP" | "MELTP")
 }
 
 fn lmp_path(name: &str) -> String {
@@ -82,7 +82,10 @@ fn stream(name: &str) -> Rows {
 
 /// The item as `m6a::data` takes it (WADs, demo, map and skill from the demo's header).
 fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
-    let episode = matches!(name, "PAUSEWI" | "PAUSEFIN" | "DEADSPEC" | "LOADP");
+    let episode = matches!(
+        name,
+        "PAUSEWI" | "PAUSEFIN" | "DEADSPEC" | "LOADP" | "MELTP"
+    );
     let first = if episode {
         "tests/reference/m6a_wads/episode.wad"
     } else {
@@ -599,6 +602,24 @@ fn a_paused_load_tic_defers_the_levels_tic_0() {
         (load, at(load), at(load + 3), at(load + 4)),
         (142, (0, 1), (0, 1), (1, 0))
     );
+}
+
+/// MELTP (`tools/reference/wire29_pause.py`): 0x81 on the completion tic, the intermission's last
+/// tic and the first tic after the melt into E1M2. Every tic's session rows equal the genuine
+/// stream (`paused`, the load and wipe counts among them) and every capture of E1M1 its DSIM45
+/// golden; the paused tics are the genuine G rows' (the load at 139 clears `paused`, g_game.c:494).
+#[test]
+fn pause_commands_around_the_screen_melts_follow_the_genuine_session() {
+    let d = drive("MELTP", None);
+    assert_eq!((&d.row, &d.refusal, &d.capture), (&None, &None, &None));
+    let (want, _) = state_golden("MELTP");
+    assert_eq!((d.tics, d.captures), (item("MELTP").2.len(), want.len()));
+    let g = stream("MELTP");
+    let paused: Vec<i64> = (g.of("G").iter())
+        .filter_map(|r| (int(r, "paused") == 1).then(|| int(r, "tic")))
+        .collect();
+    assert_eq!(paused, [126, 127, 138, 140, 141, 142, 143]);
+    assert_eq!(d.paused_tics, paused.len());
 }
 
 /// Admission and `DSES` version 4 (Rust-only safety): skill 4 starts under wire 29 alone; a
