@@ -216,22 +216,48 @@ def later_levels(name, r, wads, header):
         names = [f'loads/load_{T:05}.txt'] + [f'tic_{t:05}.txt' for t in tics if T <= t < end]
         load = L.Dump(str(ddir / names[0]))
         first = min(q for q, _ in load.serials.values())
-        kind, p, _h, _s = S6.start_from_rows(session, r['sound'], k, str(wads[0]))
+        kind, p, _h, saws = S6.start_from_rows(session, r['sound'], k, str(wads[0]))
         stale = ST.StaleAttacker(kind, previous.raw_attacker)
+        # A paused load tic (its dump still at leveltime 0) is a load capture, which holds the load's sound records
+        # (a carried chainsaw's sfx_sawup) in events.sounds.pending; they lead tic 0's events.sounds.last, made at
+        # session tic T although tic 0 runs `held` tics later (STATE_FORMAT, DSIM v42's start group).
+        held = sum(1 for n in names[1:] if L.Dump(str(ddir / n)).tic == 0)
+        stream = Headed(ST.Shifted(sounds, T), held, sounds.rows(T)[:saws] if held else [])
         dump_at = lambda j: stale.apply(ST.drop_previous(load if j == 0 else L.Dump(str(ddir / names[j])), first))
         if kind == 'carried':
             want = {f: ST.p_row(previous)[c] for f, c in ST.UNRECORDED.items()}
             if {f: ST.p_row(load)[c] for f, c in ST.UNRECORDED.items()} != want: sys.exit(f'{name}: load {k} lacks the bob')
             p.update(want)
         mapdata = L.MapData(str(wads[0]), f'E1M{loads[k]["map"]}', ST.extra_lumps(it))
-        proj = E.Projector(mapdata, skill, loads[k]['map'], ST.Shifted(sounds, T), (kind, dict(p)), respawn, fast)
-        caps, following = [], dump_at(0)
+        proj = E.Projector(mapdata, skill, loads[k]['map'], stream, (kind, dict(p)), respawn, fast)
+        steps, following = [], dump_at(0)
         for j in range(len(names)):
             d, following = following, (dump_at(j + 1) if j + 1 < len(names) else None)
-            fields = proj.step(d, following)[0]
-            if j: caps.append((d.h['tic'], WG.digest(fields)))
+            steps.append((d.h['tic'], d.tic, proj.step(d, following)[0]))
+        head = [(f'events.sounds.pending.{i}', v) for i, (q, v) in enumerate(
+            x for x in next((f for _, lt, f in steps if lt == 1), []) if x[0].startswith('events.sounds.last.')
+            and x[0] != 'events.sounds.last.count') if i < saws]
+        caps = [(t, WG.digest(pending(f, head) if lt == 0 and head else f)) for t, lt, f in steps[1:]]
         if caps: out.append((k, T, loads[k]['map'], kind, caps))
         previous = d
+    return out
+
+
+class Headed:
+    """A sound stream whose rows at `at` begin with `head`."""
+    def __init__(self, base, at, head):
+        self.base, self.at, self.head, self.last_tic = base, at, head, base.last_tic
+
+    def rows(self, tic):
+        return (self.head if tic == self.at else []) + self.base.rows(tic)
+
+
+def pending(fields, head):
+    """`fields` with events.sounds.pending holding `head` (its count, then its records)."""
+    out = []
+    for f in fields:
+        if f[0] == 'events.sounds.pending.count': out += [(f[0], len(head).to_bytes(8, 'little'))] + head
+        elif not f[0].startswith('events.sounds.pending.'): out.append(f)
     return out
 
 
