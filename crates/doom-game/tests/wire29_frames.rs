@@ -79,6 +79,11 @@ fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
         "tests/reference/m6b_wads/m6b.wad",
         "tests/reference/m6a_wads/episode.wad",
     ];
+    let first = if name == "DEADEXIT" {
+        "tests/reference/m6a_wads/rbx.wad"
+    } else {
+        first[usize::from(episode)]
+    };
     let dir = ["m6b_scripts", "wire29_session"][usize::from(new_item(name))];
     let lmp_path = format!("tests/reference/{dir}/{name}.lmp");
     let lmp = std::fs::read(m6a::root(&lmp_path)).expect("demo");
@@ -87,7 +92,7 @@ fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
     let item = m6a::Item {
         name: name.into(),
         mode: "registered".into(),
-        wads: std::iter::once(first[usize::from(episode)])
+        wads: std::iter::once(first)
             .chain(SHARED)
             .map(String::from)
             .collect(),
@@ -102,7 +107,10 @@ fn item(name: &str) -> (m6a::Item, GameParameters, Vec<TicCommand>) {
 
 /// The wire 29 items, whose goldens are under `wire29_session/` (`tools/reference/wire29_pause.py`).
 fn new_item(name: &str) -> bool {
-    matches!(name, "DEADSPEC" | "LOADP" | "TURBOP" | "REBORNP" | "MELTP")
+    matches!(
+        name,
+        "DEADSPEC" | "LOADP" | "TURBOP" | "REBORNP" | "MELTP" | "DEADEXIT"
+    )
 }
 
 /// The genuine sound stream's rows by tic (`m6b_sound/<item>.sound` or `wire29_session/`).
@@ -231,6 +239,8 @@ struct Outcome {
     first: Option<(i64, String)>,
     /// The port's F line at the first differing frame.
     f_line: Option<String>,
+    /// The port's frame digest at the first paused tic whose B row differs.
+    fault_frame: Option<String>,
     tics: usize,
     level_frames: usize,
     other_frames: usize,
@@ -459,6 +469,7 @@ fn drive(name: &str, sb: u8, frames: bool, fault: Option<PlantedFault>) -> Outco
                         out.paused_frames += 1;
                         Ok(())
                     } else {
+                        out.fault_frame.get_or_insert_with(|| sha256(&px));
                         Err(format!("B row {want:?} genuine, the port {got:?}"))
                     }
                 }
@@ -651,6 +662,40 @@ fn a_paused_reborn_load_tic_is_drawn_as_the_genuine_engine_draws_it() {
     assert!(o.paused_frames > 0, "paused frames compared");
     eprintln!(
         "REBORNP: {} tics, {} paused frames",
+        o.tics, o.paused_frames
+    );
+}
+
+/// DEADEXIT (`tools/reference/wire29_pause.py`): the dead player's body crosses the W1 exit, so
+/// `G_DoLoadLevel` makes `PST_DEAD` `PST_REBORN` after the intermission (g_game.c:479-480) and
+/// `P_SpawnPlayer`'s `G_PlayerReborn` clears the `viewz` 1 of p_setup.c:604 (p_mobj.c:659-660,
+/// g_game.c:815). 0x81 on that load tic pauses it, so its frames are drawn from viewz 0 although
+/// the level came through `G_DoWorldDone`. Every tic equals the genuine goldens; with the old rule
+/// (viewz 1 for every `WorldDone`, `PlantedFault::WorldDoneViewzOne`) the first paused frame
+/// differs, and its digest is the altered genuine engine's B row (`V` row of `deadexit_state.txt`).
+#[test]
+fn a_paused_load_tic_after_a_dead_players_exit_is_drawn_from_viewz_0() {
+    let o = drive("DEADEXIT", 10, true, None);
+    assert_eq!(o.first, None, "DEADEXIT {:?}", o.f_line);
+    assert_eq!(o.tics, item("DEADEXIT").2.len(), "every tic");
+    assert!(o.paused_frames > 0 && o.mixer_rows > 0);
+    let v = read("wire29_session/deadexit_state.txt");
+    let v: Vec<&str> = v
+        .lines()
+        .find(|l| l.starts_with("V,"))
+        .expect("the V row")
+        .split(',')
+        .collect();
+    let tic: i64 = v[3].parse().unwrap();
+    let f = drive("DEADEXIT", 10, true, Some(PlantedFault::WorldDoneViewzOne));
+    assert_eq!(f.first.as_ref().map(|x| x.0), Some(tic), "{f:?}");
+    assert_eq!(
+        f.fault_frame.as_deref(),
+        Some(v[4]),
+        "the variant's paused frame"
+    );
+    eprintln!(
+        "DEADEXIT: {} tics, {} paused frames; viewz 1 caught at tic {tic} with the variant's frame",
         o.tics, o.paused_frames
     );
 }
