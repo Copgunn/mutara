@@ -178,6 +178,32 @@ fn dsim45_reader_round_trip_and_version_refusals() {
     );
 }
 
+/// Finding R4: a kill credit above the map total is reachable only when monsters
+/// respawn, skill 4 or the respawn parameter (g_game.c:1416-1419; the total counts
+/// placed monsters only, p_mobj.c:789-790), and the DSIM45 reader admits it only
+/// then.
+#[test]
+fn dsim45_kills_pass_the_total_only_with_respawning() {
+    let two = 2_i32.to_le_bytes();
+    for (skill, respawn, fast, ok) in [
+        (Skill::Nightmare, false, false, true),
+        (Skill::Hard, true, false, true),
+        (Skill::Hard, true, true, true),
+        (Skill::Hard, false, false, false),
+        (Skill::Hard, false, true, false),
+        (Skill::Medium, false, true, false),
+    ] {
+        let f = fields(&level_at(2, skill, GameParameters { respawn, fast }, 0).snapshot());
+        assert_eq!(read45(&f), Ok(45), "{skill:?} {respawn} {fast}, no credit");
+        let got = read45(&with(&f, "level.single_player_kill_count", Some(&two)));
+        assert_eq!(
+            got.is_ok(),
+            ok,
+            "{skill:?} {respawn} {fast}, credit 2: {got:?}"
+        );
+    }
+}
+
 /// The DSIM45 rules beyond DSIM44's: the parameters' bytes, the gametic lead's
 /// range, skill 4 (refused by DSIM44), kills past the total (refused by DSIM44)
 /// and the durations of the thirteen fast-table states, halved iff skill 4 or
